@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useAuthStore } from "@/shared/store/auth.store";
@@ -17,7 +17,7 @@ function buildNav(orgCount: number, pendingCount: number, userCount: number): Na
       items: [
         { to: "/", icon: "space_dashboard", label: "Dashboard" },
         {
-          to: "/organisations",
+          to: "/organizations",
           icon: "domain",
           label: "Organizations",
           badge: orgCount || undefined,
@@ -43,12 +43,16 @@ function buildNav(orgCount: number, pendingCount: number, userCount: number): Na
       items: [
         { to: "/disputes", icon: "gavel", label: "Disputes" },
         { to: "/audit-log", icon: "history", label: "Audit Log" },
+        { to: "/feature-flags", icon: "toggle_on", label: "Feature Flags" },
+        { to: "/moderation", icon: "shield", label: "Moderation" },
+        { to: "/compliance", icon: "verified_user", label: "Compliance" },
       ],
     },
     {
       section: "Operations",
       items: [
         { to: "/analytics", icon: "analytics", label: "Analytics" },
+        { to: "/announcements", icon: "campaign", label: "Announcements" },
         { to: "/health", icon: "monitor_heart", label: "System Health" },
       ],
     },
@@ -60,10 +64,11 @@ type Props = {
   title?: string;
   subtitle?: string;
   actions?: ReactNode;
+  crumbs?: string[];
 };
 
-/** SEU v8 platform shell: sidebar nav + frosted topbar. Matches v8 platform plane exactly. */
-export default function AdminLayout({ children, title, subtitle, actions }: Props) {
+/** SEU v8 platform shell: sidebar nav + frosted topbar + fixed breadcrumb bar. */
+export default function AdminLayout({ children, title, subtitle, actions, crumbs }: Props) {
   const navigate = useNavigate();
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const user = useAuthStore((s) => s.user);
@@ -84,11 +89,16 @@ export default function AdminLayout({ children, title, subtitle, actions }: Prop
 
   return (
     <div className="flex min-h-screen" style={{ background: "var(--bg)" }}>
-      {/* sidebar */}
+      {/* sidebar - fixed, doesn't scroll with page */}
       <aside
-        className="hidden md:flex flex-col flex-shrink-0 h-screen sticky top-0 overflow-y-auto"
+        className="hidden md:flex flex-col flex-shrink-0 overflow-y-auto"
         style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          bottom: 0,
           width: 260,
+          zIndex: 50,
           background: "var(--surface)",
           borderRight: "1px solid var(--outline)",
           padding: "18px 14px",
@@ -245,26 +255,29 @@ export default function AdminLayout({ children, title, subtitle, actions }: Prop
         </div>
       </aside>
 
-      {/* main */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-x-hidden">
-        {/* topbar — sticky, matches web app navbar */}
+      {/* main - offset by sidebar width */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-x-hidden" style={{ marginLeft: 260 }}>
+        {/* topbar - fixed, explicit height so breadcrumb can sit below it */}
         <header
           className="flex items-center justify-between flex-shrink-0"
           style={{
-            position: "sticky",
+            position: "fixed",
             top: 0,
+            left: 260,
+            right: 0,
+            height: 56,
             zIndex: 40,
             background: "rgba(244,245,247,0.85)",
             backdropFilter: "blur(20px)",
             WebkitBackdropFilter: "blur(20px)",
             borderBottom: "1px solid var(--outline)",
-            padding: "10px 28px",
+            padding: "0 28px",
           }}
         >
-          {/* inline search — static placeholder for now */}
+          {/* inline search  - static placeholder for now */}
           <AdminSearch />
 
-          {/* right: profile only — no role switcher, no notifications */}
+          {/* right: profile only  - no role switcher, no notifications */}
           <div className="flex items-center gap-3">
             <button
               className="flex items-center gap-3"
@@ -318,8 +331,53 @@ export default function AdminLayout({ children, title, subtitle, actions }: Prop
           </div>
         </header>
 
-        {/* page content */}
-        <main className="flex-1 overflow-y-auto" style={{ padding: "28px 32px 60px" }}>
+        {/* breadcrumb bar - fixed at top:56 (right below the 56px topbar) */}
+        {crumbs && (
+          <div
+            style={{
+              position: "fixed",
+              top: 56,
+              left: 260,
+              right: 0,
+              height: 32,
+              zIndex: 39,
+              background: "var(--bg)",
+              borderBottom: "1px solid var(--outline)",
+              padding: "0 32px",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            {crumbs.map((c, i) => (
+              <span key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {i > 0 && (
+                  <span style={{ opacity: 0.4, fontFamily: "Manrope, sans-serif", fontSize: 12 }}>
+                    /
+                  </span>
+                )}
+                <span
+                  style={{
+                    fontFamily: "JetBrains Mono, monospace",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                    color: i === crumbs.length - 1 ? "var(--secondary)" : "var(--on-mut)",
+                  }}
+                >
+                  {c}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* page content - topbar 56px + breadcrumb 33px = 89px, or just topbar 56px */}
+        <main
+          className="flex-1 overflow-y-auto"
+          style={{ padding: "20px 32px 60px", marginTop: crumbs ? 88 : 56 }}
+        >
           {(title || actions) && (
             <div className="flex items-start justify-between gap-6 flex-wrap mb-7">
               <div>
@@ -362,9 +420,9 @@ export default function AdminLayout({ children, title, subtitle, actions }: Prop
   );
 }
 
-// * ─── Admin Search Bar ─────────────────────────────────────────────────────
+// * admin search bar
 
-/** Inline search bar for the superadmin topbar — searches orgs and users. */
+/** Inline search bar for the superadmin topbar  - searches orgs and users. */
 function AdminSearch() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
@@ -383,7 +441,7 @@ function AdminSearch() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ! Keyboard shortcut — Cmd+K or Ctrl+K to focus
+  // ! Keyboard shortcut  - Cmd+K or Ctrl+K to focus
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -401,7 +459,7 @@ function AdminSearch() {
 
   /** Quick-jump links that always show when the search bar is focused. */
   const quickLinks = [
-    { icon: "domain", label: "Organizations", path: "/organisations" },
+    { icon: "domain", label: "Organizations", path: "/organizations" },
     { icon: "group", label: "Users", path: "/users" },
     { icon: "pending_actions", label: "Verification Queue", path: "/verification-queue" },
     { icon: "attach_money", label: "Billing & Revenue", path: "/billing" },

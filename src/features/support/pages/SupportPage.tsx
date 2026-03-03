@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS, useToast } from "@/shared/components/v8";
+import { exportCSV, exportPDF } from "@/shared/lib/export";
 import superadminApi, { type TicketPriority, type TicketStatus } from "@/shared/api/superadmin.api";
 
 const PRIORITY_STYLE: Record<TicketPriority, { label: string; bg: string; color: string }> = {
@@ -21,9 +23,29 @@ const STATUS_STYLE: Record<TicketStatus, { label: string; bg: string; color: str
 export default function SupportPage() {
   const { toastEl, toast } = useToast();
   const qc = useQueryClient();
+
+  // * create ticket form state
+  const [showCreate, setShowCreate] = useState(false);
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [priority, setPriority] = useState<"low" | "med" | "high" | "critical">("med");
+
   const { data: tickets = [], isLoading } = useQuery({
     queryKey: ["tickets"],
     queryFn: superadminApi.listTickets,
+  });
+
+  // * create ticket mutation - resets form on success
+  const createMutation = useMutation({
+    mutationFn: () => superadminApi.createTicket({ subject, message, priority }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tickets"] });
+      toast("Ticket created");
+      setShowCreate(false);
+      setSubject("");
+      setMessage("");
+      setPriority("med");
+    },
   });
 
   const updateMutation = useMutation({
@@ -41,22 +63,48 @@ export default function SupportPage() {
     (t) => t.status === "resolved" || t.status === "closed"
   ).length;
 
+  // * export helpers - format tickets as rows for csv/pdf
+  const exportHeaders = ["Subject", "Status", "Priority", "Created"];
+  function buildExportRows() {
+    return tickets.map((t) => [
+      t.subject,
+      STATUS_STYLE[t.status].label,
+      PRIORITY_STYLE[t.priority].label,
+      new Date(t.created_at).toLocaleDateString(),
+    ]);
+  }
+
+  function handleExportCSV() {
+    exportCSV(exportHeaders, buildExportRows(), "support-tickets");
+  }
+
+  function handleExportPDF() {
+    exportPDF("Support Tickets", exportHeaders, buildExportRows(), "support-tickets");
+  }
+
   return (
-    <AdminLayout>
+    <AdminLayout crumbs={["Platform", "Support"]}>
       {toastEl}
       <PH
-        crumbs={["Platform", "Support"]}
         title="Support tickets"
-        sub="Organisation requests, bug reports, and escalations."
+        sub="Organization requests, bug reports, and escalations."
         actions={
           <>
-            <button className="btn-sm">
+            <button className="btn-sm" onClick={() => setShowCreate((v) => !v)}>
+              <MS n="add" size={13} />
+              New ticket
+            </button>
+            <button className="btn-sm" onClick={() => toast("Filter coming soon")}>
               <MS n="filter_list" size={13} />
               Filter
             </button>
-            <button className="btn-sm">
+            <button className="btn-sm" onClick={handleExportCSV}>
               <MS n="download" size={13} />
-              Export
+              Export CSV
+            </button>
+            <button className="btn-sm" onClick={handleExportPDF}>
+              <MS n="picture_as_pdf" size={13} />
+              Export PDF
             </button>
           </>
         }
@@ -85,6 +133,88 @@ export default function SupportPage() {
           value={tickets.length.toString()}
         />
       </div>
+
+      {/* create ticket form */}
+      {showCreate && (
+        <div className="panel">
+          <div className="panel-head">
+            <span className="panel-title">Create ticket</span>
+          </div>
+          <div className="panel-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <label
+                htmlFor="ticket-subject"
+                style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}
+              >
+                Subject
+              </label>
+              <input
+                id="ticket-subject"
+                type="text"
+                className="input"
+                placeholder="Brief summary of the issue"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="ticket-message"
+                style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}
+              >
+                Message
+              </label>
+              <textarea
+                id="ticket-message"
+                className="input"
+                rows={3}
+                placeholder="Describe the issue in detail"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="ticket-priority"
+                style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}
+              >
+                Priority
+              </label>
+              <select
+                id="ticket-priority"
+                className="input"
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as "low" | "med" | "high" | "critical")}
+              >
+                <option value="low">Low</option>
+                <option value="med">Med</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                className="btn-sm"
+                onClick={() => {
+                  setShowCreate(false);
+                  setSubject("");
+                  setMessage("");
+                  setPriority("med");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-sm"
+                disabled={!subject.trim() || !message.trim() || createMutation.isPending}
+                onClick={() => createMutation.mutate()}
+              >
+                {createMutation.isPending ? "Creating..." : "Submit ticket"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="panel">
         <div className="panel-head">
@@ -131,7 +261,7 @@ export default function SupportPage() {
               <p
                 style={{ fontSize: 13, color: "var(--on-mut)", fontFamily: "Manrope, sans-serif" }}
               >
-                Support tickets submitted by organisations will appear here.
+                Support tickets submitted by organizations will appear here.
               </p>
             </div>
           ) : (

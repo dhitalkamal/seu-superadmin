@@ -1,8 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS, useToast } from "@/shared/components/v8";
 import superadminApi from "@/shared/api/superadmin.api";
+import { usePagination } from "@/shared/lib/usePagination";
+import { exportCSV, exportPDF } from "@/shared/lib/export";
+import Pagination from "@/shared/components/Pagination";
+import DateRangeFilter, { getRangeCutoff, type Range } from "@/shared/components/DateRangeFilter";
 
 /** color a dot next to the action badge based on the event type category */
 function actionColor(eventType: string): string {
@@ -33,12 +37,25 @@ function initials(name: string): string {
 
 export default function AuditLogPage() {
   const { toastEl, toast } = useToast();
+  const [range, setRange] = useState<Range>("all");
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["audit-log"],
     queryFn: superadminApi.listAuditLog,
     refetchInterval: 60_000,
   });
+
+  // filter entries by selected date range
+  const cutoff = getRangeCutoff(range);
+  const filteredEntries = useMemo(
+    () => (cutoff ? entries.filter((e) => new Date(e.created_at) >= cutoff) : entries),
+    [entries, cutoff]
+  );
+
+  const { page, totalPages, paged, from, to, total, setPage, next, prev } = usePagination(
+    filteredEntries,
+    20
+  );
 
   const thirtyDaysAgo = useMemo(() => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), []);
 
@@ -53,23 +70,85 @@ export default function AuditLogPage() {
   ).length;
 
   return (
-    <AdminLayout>
+    <AdminLayout crumbs={["Trust", "Audit log"]}>
       {toastEl}
       <PH
-        crumbs={["Trust", "Audit log"]}
         title="Platform audit log"
         sub="Every privileged action across the platform - who, what, when, where, from which device."
         actions={
           <>
-            <button className="btn-sm" onClick={() => toast("Filter coming soon")}>
-              <MS n="filter_alt" size={13} />
-              Filter
-            </button>
-            <button className="btn-sm" onClick={() => toast("CSV export queued")}>
+            <DateRangeFilter value={range} onChange={setRange} />
+            <button
+              className="btn-sm"
+              onClick={() => {
+                const headers = [
+                  "Timestamp",
+                  "Actor",
+                  "Role",
+                  "Action",
+                  "Target",
+                  "Details",
+                  "IP",
+                  "User Agent",
+                ];
+                const rows = filteredEntries.map((e) => {
+                  const meta = e.metadata as Record<string, string>;
+                  const metaStr =
+                    Object.entries(meta)
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join("; ") || "-";
+                  const target = meta.target ?? meta.email ?? meta.org_name ?? meta.resource ?? "-";
+                  return [
+                    new Date(e.created_at).toISOString().replace("T", " ").slice(0, 19),
+                    e.actor_name,
+                    e.actor_role,
+                    e.event_type,
+                    target,
+                    metaStr,
+                    e.ip_address ?? "internal",
+                    e.user_agent ?? "internal",
+                  ];
+                });
+                exportCSV(headers, rows, `audit-log-${new Date().toISOString().slice(0, 10)}`);
+                toast("CSV exported");
+              }}
+            >
               <MS n="download" size={13} />
-              Export
+              Export CSV
             </button>
-            <button className="btn-sm">
+            <button
+              className="btn-sm"
+              onClick={() => {
+                const headers = ["Timestamp", "Actor", "Role", "Action", "Target", "Details", "IP"];
+                const rows = filteredEntries.map((e) => {
+                  const meta = e.metadata as Record<string, string>;
+                  const metaStr =
+                    Object.entries(meta)
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join("; ") || "-";
+                  const target = meta.target ?? meta.email ?? meta.org_name ?? meta.resource ?? "-";
+                  return [
+                    new Date(e.created_at).toISOString().replace("T", " ").slice(0, 19),
+                    e.actor_name,
+                    e.actor_role,
+                    e.event_type,
+                    target,
+                    metaStr,
+                    e.ip_address ?? "internal",
+                  ];
+                });
+                exportPDF(
+                  "Platform Audit Log",
+                  headers,
+                  rows,
+                  `audit-log-${new Date().toISOString().slice(0, 10)}`
+                );
+              }}
+            >
+              <MS n="picture_as_pdf" size={13} />
+              Export PDF
+            </button>
+            <button className="btn-sm" onClick={() => toast("Scheduled digest coming soon")}>
               <MS n="schedule_send" size={13} />
               Schedule digest
             </button>
@@ -124,7 +203,7 @@ export default function AuditLogPage() {
             >
               Loading audit events...
             </div>
-          ) : entries.length === 0 ? (
+          ) : filteredEntries.length === 0 ? (
             <div style={{ padding: "48px 0", textAlign: "center" }}>
               <MS
                 n="history"
@@ -160,7 +239,7 @@ export default function AuditLogPage() {
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry) => {
+                {paged.map((entry) => {
                   const meta = entry.metadata as Record<string, string>;
                   const metaStr =
                     Object.entries(meta)
@@ -283,6 +362,16 @@ export default function AuditLogPage() {
             </table>
           )}
         </div>
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          from={from}
+          to={to}
+          total={total}
+          onPrev={prev}
+          onNext={next}
+          onPage={setPage}
+        />
       </div>
     </AdminLayout>
   );

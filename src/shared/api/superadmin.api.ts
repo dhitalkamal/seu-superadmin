@@ -8,6 +8,7 @@ const MGMT = "/org/api/v1";
 const EVENT = "/event/api/v1";
 const PAYMENT = "/payment/api/v1";
 const NOTIFICATION = "/notification/api/v1";
+const INTELLIGENCE = "/intelligence/api/v1";
 
 type ApiOk<T> = { data: T; error: null | object; meta: object };
 type PagedOk<T> = { data: { results: T[]; count: number } };
@@ -63,7 +64,7 @@ export type Org = {
 
 export type OrgDocument = {
   id: string;
-  organisation_id: string;
+  organization_id: string;
   doc_type: string;
   file_url: string;
   file_name: string;
@@ -73,7 +74,7 @@ export type OrgDocument = {
 
 export type OrgMember = {
   id: string;
-  organisation_id: string;
+  organization_id: string;
   user_id: string;
   role: "owner" | "admin" | "manager" | "member";
   is_active: boolean;
@@ -92,7 +93,7 @@ export type PlatformEvent = {
   capacity: number;
   registered_count: number;
   organiser_id: string;
-  organisation_id?: string;
+  organization_id?: string;
   is_free: boolean;
   ticket_price?: string;
   created_at: string;
@@ -186,7 +187,7 @@ export type EventAnalytics = {
   top_events: {
     id: string;
     title: string;
-    organisation_id: string | null;
+    organization_id: string | null;
     registered_count: number;
     status: string;
     event_type: string;
@@ -239,6 +240,15 @@ export type Dispute = {
   updated_at: string;
 };
 
+// ===== Feature flag types =====
+
+export type FeatureFlag = {
+  key: string;
+  label: string;
+  enabled: boolean;
+  rollout_percentage: number;
+};
+
 // ===== Health types =====
 
 export type ServiceHealth = {
@@ -246,6 +256,18 @@ export type ServiceHealth = {
   status: "healthy" | "unhealthy";
   checks?: { database?: string; redis?: string; rabbitmq?: string };
   version?: string;
+};
+
+// ===== Health ping history types =====
+
+export type HealthPing = {
+  id: string;
+  service_name: string;
+  service_type: "application" | "infrastructure";
+  status: "healthy" | "unhealthy" | "unreachable";
+  latency_ms: number;
+  details: Record<string, unknown>;
+  checked_at: string;
 };
 
 // ===== Plan catalogue =====
@@ -293,6 +315,35 @@ export const PLAN_CATALOGUE = [
 // ===== API =====
 
 const superadminApi = {
+  // IAM: feature flags
+  listFeatureFlags: async (): Promise<FeatureFlag[]> => {
+    const r = await client.get(`${IAM}/admin/feature-flags/`);
+    return r.data?.data ?? r.data ?? [];
+  },
+
+  createFeatureFlag: async (payload: {
+    key: string;
+    label: string;
+    enabled: boolean;
+    rollout_percentage?: number;
+  }) => {
+    const r = await client.post(`${IAM}/admin/feature-flags/`, payload);
+    return r.data;
+  },
+
+  updateFeatureFlag: async (
+    key: string,
+    payload: { enabled?: boolean; rollout_percentage?: number }
+  ) => {
+    const r = await client.patch(`${IAM}/admin/feature-flags/${key}/`, payload);
+    return r.data;
+  },
+
+  deleteFeatureFlag: async (key: string) => {
+    const r = await client.delete(`${IAM}/admin/feature-flags/${key}/`);
+    return r.data;
+  },
+
   // IAM: users
   listUsers: () => client.get<ApiOk<User[]>>(`${IAM}/admin/users/`).then((r) => r.data.data ?? []),
 
@@ -303,34 +354,40 @@ const superadminApi = {
     client.post<ApiOk<User>>(`${IAM}/admin/users/${id}/activate/`).then((r) => r.data.data),
 
   // Management: orgs
-  listOrgs: () => client.get<ApiOk<Org[]>>(`${MGMT}/organisations/`).then((r) => r.data.data ?? []),
+  listOrgs: () =>
+    client.get(`${MGMT}/organizations/`).then((r) => {
+      const body = r.data;
+      if (body?.data?.results) return body.data.results as Org[];
+      if (Array.isArray(body?.data)) return body.data as Org[];
+      return [] as Org[];
+    }),
 
   getOrg: (id: string) =>
-    client.get<ApiOk<Org>>(`${MGMT}/organisations/${id}/`).then((r) => r.data.data),
+    client.get<ApiOk<Org>>(`${MGMT}/organizations/${id}/`).then((r) => r.data.data),
 
   listOrgDocuments: (orgId: string) =>
     client
-      .get<ApiOk<OrgDocument[]>>(`${MGMT}/organisations/${orgId}/documents/`)
+      .get<ApiOk<OrgDocument[]>>(`${MGMT}/organizations/${orgId}/documents/`)
       .then((r) => r.data.data ?? []),
 
   approveOrg: (id: string) =>
-    client.post<ApiOk<Org>>(`${MGMT}/organisations/${id}/approve/`).then((r) => r.data.data),
+    client.post<ApiOk<Org>>(`${MGMT}/organizations/${id}/approve/`).then((r) => r.data.data),
 
   rejectOrg: (id: string) =>
-    client.post<ApiOk<Org>>(`${MGMT}/organisations/${id}/reject/`).then((r) => r.data.data),
+    client.post<ApiOk<Org>>(`${MGMT}/organizations/${id}/reject/`).then((r) => r.data.data),
 
   suspendOrg: (id: string) =>
-    client.post<ApiOk<Org>>(`${MGMT}/organisations/${id}/suspend/`).then((r) => r.data.data),
+    client.post<ApiOk<Org>>(`${MGMT}/organizations/${id}/suspend/`).then((r) => r.data.data),
 
   reinstateOrg: (id: string) =>
-    client.post<ApiOk<Org>>(`${MGMT}/organisations/${id}/reinstate/`).then((r) => r.data.data),
+    client.post<ApiOk<Org>>(`${MGMT}/organizations/${id}/reinstate/`).then((r) => r.data.data),
 
   deleteOrg: (id: string) =>
-    client.post<ApiOk<Org>>(`${MGMT}/organisations/${id}/delete/`).then((r) => r.data.data),
+    client.post<ApiOk<Org>>(`${MGMT}/organizations/${id}/delete/`).then((r) => r.data.data),
 
   listOrgMembers: (orgId: string) =>
     client
-      .get<ApiOk<OrgMember[]>>(`${MGMT}/organisations/${orgId}/members/`)
+      .get<ApiOk<OrgMember[]>>(`${MGMT}/organizations/${orgId}/members/`)
       .then((r) => r.data.data),
 
   // Events
@@ -343,13 +400,50 @@ const superadminApi = {
   fetchHealth: (service: string) => {
     const prefix = service === "management" ? "org" : service;
     return client
-      .get<ServiceHealth>(`/${prefix}/api/v1/health/`)
-      .then((r) => r.data)
-      .catch((err: { response?: { data?: ServiceHealth } }) => {
-        if (err?.response?.data?.status) return err.response.data;
+      .get<ApiOk<ServiceHealth>>(`/${prefix}/api/v1/health/`)
+      .then((r) => r.data.data)
+      .catch((err: { response?: { data?: ApiOk<ServiceHealth> } }) => {
+        if (err?.response?.data?.data?.status) return err.response.data.data;
         throw err;
       });
   },
+
+  // infra health: rabbitmq management api
+  fetchRabbitMqHealth: () =>
+    client
+      .get<{ status: string }>("/infra/rabbitmq/api/health/checks/alarms")
+      .then((r) => ({ status: r.data.status === "ok" ? "healthy" : "unhealthy" as const }))
+      .catch(() => ({ status: "unreachable" as const })),
+
+  // infra health: elasticsearch cluster health
+  fetchElasticsearchHealth: () =>
+    client
+      .get<{ status: string; cluster_name: string; number_of_nodes: number; active_shards: number }>("/infra/elasticsearch/_cluster/health")
+      .then((r) => ({
+        status: (r.data.status === "green" || r.data.status === "yellow") ? "healthy" : "unhealthy" as const,
+        cluster: r.data.status,
+        nodes: r.data.number_of_nodes,
+        shards: r.data.active_shards,
+      }))
+      .catch(() => ({ status: "unreachable" as const, cluster: null, nodes: 0, shards: 0 })),
+
+  // infra health: minio liveness
+  fetchMinioHealth: () =>
+    client
+      .get("/infra/minio/minio/health/live", { validateStatus: () => true })
+      .then((r) => ({ status: r.status === 200 ? "healthy" : "unhealthy" as const }))
+      .catch(() => ({ status: "unreachable" as const })),
+
+  // health ping history: 30-day stored data from intelligence service
+  fetchHealthHistory: (days = 30) =>
+    client
+      .get<ApiOk<HealthPing[]>>(`${INTELLIGENCE}/health-history/?days=${days}`)
+      .then((r) => r.data.data ?? []),
+
+  fetchLatestHealthRound: () =>
+    client
+      .get<ApiOk<HealthPing[]>>(`${INTELLIGENCE}/health-history/latest/`)
+      .then((r) => r.data.data ?? []),
 
   // Notifications: broadcast to all users via batch endpoint
   sendAnnouncement: (payload: {
@@ -360,9 +454,18 @@ const superadminApi = {
     message: string;
   }) => client.post(`${NOTIFICATION}/notifications/batch/`, payload).then((r) => r.data),
 
-  // Payments: orders
+  // Notifications: send to a single user
+  sendNotification: (payload: {
+    user_id: string;
+    notification_type: string;
+    channel: string;
+    title: string;
+    message: string;
+  }) => client.post(`${NOTIFICATION}/notifications/`, payload).then((r) => r.data),
+
+  // Payments: orders - uses admin endpoint for full cross-org visibility
   listOrders: () =>
-    client.get<PagedOk<PaymentOrder>>(`${PAYMENT}/orders/`).then((r) => r.data.data),
+    client.get<PagedOk<PaymentOrder>>(`${PAYMENT}/admin/orders/`).then((r) => r.data.data),
 
   // Disputes
   listAllDisputes: () =>
@@ -406,13 +509,12 @@ const superadminApi = {
   getUserAnalytics: () =>
     client.get<ApiOk<UserAnalytics>>(`${IAM}/admin/analytics/`).then((r) => r.data.data),
 
-  // Subscriptions
-  listSubscriptions: (orgId?: string) =>
-    client
-      .get<
-        ApiOk<Subscription[]>
-      >(`${PAYMENT}/subscriptions/`, { params: orgId ? { org_id: orgId } : {} })
-      .then((r) => r.data.data ?? []),
+  // Subscriptions - org_id passed as query param for filtering
+  listSubscriptions: async (orgId?: string): Promise<Subscription[]> => {
+    const params = orgId ? { org_id: orgId } : {};
+    const r = await client.get(`${PAYMENT}/subscriptions/`, { params });
+    return r.data?.data ?? r.data ?? [];
+  },
 
   getSubscriptionPayments: (subscriptionId: string) =>
     client
