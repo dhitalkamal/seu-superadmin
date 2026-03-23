@@ -1,8 +1,13 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, MS, useToast } from "@/shared/components/v8";
 import superadminApi, { type Org } from "@/shared/api/superadmin.api";
+import { usePagination } from "@/shared/lib/usePagination";
+import { exportCSV, exportPDF } from "@/shared/lib/export";
+import Pagination from "@/shared/components/Pagination";
+import DateRangeFilter, { getRangeCutoff, type Range } from "@/shared/components/DateRangeFilter";
 
 function OrgRow({
   org,
@@ -107,6 +112,25 @@ function OrgRow({
               Reinstate
             </button>
           )}
+          {/* delete org button - always visible */}
+          <button
+            className="btn-sm danger"
+            style={{
+              fontSize: 11,
+              padding: "4px 6px",
+              color: "#e83151",
+              background: "transparent",
+              border: "1px solid #e83151",
+              borderRadius: 6,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+            }}
+            title="Delete organization"
+            onClick={() => onAction("delete", org.id)}
+          >
+            <MS n="delete" size={14} />
+          </button>
         </div>
       </td>
     </tr>
@@ -124,56 +148,109 @@ export default function OrgsPage() {
   });
 
   const approve = useMutation({
-    mutationFn: superadminApi.approveOrg,
+    mutationFn: (id: string) => superadminApi.approveOrg(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orgs"] });
-      toast("Organisation approved");
+      toast("Organization approved");
     },
   });
   const reject = useMutation({
-    mutationFn: superadminApi.rejectOrg,
+    mutationFn: (id: string) => superadminApi.rejectOrg(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orgs"] });
-      toast("Organisation rejected");
+      toast("Organization rejected");
     },
   });
   const suspend = useMutation({
     mutationFn: superadminApi.suspendOrg,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orgs"] });
-      toast("Organisation suspended");
+      toast("Organization suspended");
     },
   });
   const reinstate = useMutation({
     mutationFn: superadminApi.reinstateOrg,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orgs"] });
-      toast("Organisation reinstated");
+      toast("Organization reinstated");
     },
   });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => superadminApi.deleteOrg(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["orgs"] });
+      toast("Organization deleted");
+    },
+  });
+
+  // date range filter state
+  const [range, setRange] = useState<Range>("all");
 
   function handleAction(action: string, id: string) {
     if (action === "approve") approve.mutate(id);
     else if (action === "reject") reject.mutate(id);
     else if (action === "suspend") suspend.mutate(id);
     else if (action === "reinstate") reinstate.mutate(id);
+    else if (action === "delete") {
+      if (confirm("Permanently delete this organization? This cannot be undone.")) {
+        deleteMutation.mutate(id);
+      }
+    }
   }
 
-  const pending = orgs.filter((o) => o.status === "pending_review");
-  const active = orgs.filter((o) => o.status === "active");
+  // filter by date range first, then derive status counts
+  const cutoff = getRangeCutoff(range);
+  const rangeFiltered = cutoff ? orgs.filter((o) => new Date(o.created_at) >= cutoff) : orgs;
+
+  const pending = rangeFiltered.filter((o) => o.status === "pending_review");
+  const active = rangeFiltered.filter((o) => o.status === "active");
+
+  // paginate the filtered list
+  const { page, totalPages, paged, from, to, total, setPage, next, prev } = usePagination(
+    rangeFiltered,
+    20
+  );
+
+  /** Format orgs into export rows: [name, email, status, plan, verified, created] */
+  function buildExportRows(list: Org[]): string[][] {
+    return list.map((o) => [
+      o.name,
+      o.contact_email,
+      o.status,
+      o.plan,
+      o.is_verified ? "Yes" : "No",
+      new Date(o.created_at).toLocaleDateString(),
+    ]);
+  }
+
+  const exportHeaders = ["Name", "Email", "Status", "Plan", "Verified", "Created"];
+
+  function handleExportCSV() {
+    exportCSV(exportHeaders, buildExportRows(rangeFiltered), "organizations");
+  }
+
+  function handleExportPDF() {
+    exportPDF("Organizations", exportHeaders, buildExportRows(rangeFiltered), "organizations");
+  }
 
   return (
-    <AdminLayout>
+    <AdminLayout crumbs={["Platform", "Organizations"]}>
       {toastEl}
       <PH
-        crumbs={["Platform", "Organizations"]}
         title="All organizations"
         sub="Every workspace on the platform - across plans and regions."
         actions={
-          <button className="btn-sm">
-            <MS n="download" size={13} />
-            Export
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <DateRangeFilter value={range} onChange={setRange} />
+            <button className="btn-sm" onClick={handleExportCSV}>
+              <MS n="download" size={13} />
+              Export CSV
+            </button>
+            <button className="btn-sm" onClick={handleExportPDF}>
+              <MS n="picture_as_pdf" size={13} />
+              Export PDF
+            </button>
+          </div>
         }
       />
 
@@ -181,7 +258,7 @@ export default function OrgsPage() {
         <div className="notice">
           <MS n="pending_actions" />
           <div>
-            <strong>{pending.length} organisations pending review</strong>
+            <strong>{pending.length} organizations pending review</strong>
             <span>Review and approve or reject them to grant platform access.</span>
           </div>
         </div>
@@ -189,10 +266,10 @@ export default function OrgsPage() {
 
       <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
         {[
-          ["All", orgs.length],
+          ["All", rangeFiltered.length],
           ["Active", active.length],
           ["Pending", pending.length],
-          ["Suspended", orgs.filter((o) => o.status === "suspended").length],
+          ["Suspended", rangeFiltered.filter((o) => o.status === "suspended").length],
         ].map(([l, n]) => (
           <div
             key={String(l)}
@@ -220,7 +297,7 @@ export default function OrgsPage() {
             fontFamily: "Manrope, sans-serif",
           }}
         >
-          Loading organisations...
+          Loading organizations...
         </div>
       ) : (
         <div className="panel">
@@ -237,17 +314,17 @@ export default function OrgsPage() {
                 </tr>
               </thead>
               <tbody>
-                {orgs.map((o) => (
+                {paged.map((o) => (
                   <OrgRow
                     key={o.id}
                     org={o}
                     onAction={handleAction}
-                    onView={(id) => navigate(`/organisations/${id}/verify`)}
+                    onView={(id) => navigate(`/organizations/${id}/verify`)}
                   />
                 ))}
               </tbody>
             </table>
-            {orgs.length === 0 && (
+            {rangeFiltered.length === 0 && (
               <div
                 style={{
                   padding: "48px 20px",
@@ -256,10 +333,20 @@ export default function OrgsPage() {
                   fontFamily: "Manrope, sans-serif",
                 }}
               >
-                No organisations yet.
+                No organizations yet.
               </div>
             )}
           </div>
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            from={from}
+            to={to}
+            total={total}
+            onPrev={prev}
+            onNext={next}
+            onPage={setPage}
+          />
         </div>
       )}
     </AdminLayout>

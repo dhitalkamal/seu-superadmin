@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS, useToast } from "@/shared/components/v8";
+import { exportCSV, exportPDF } from "@/shared/lib/export";
 import superadminApi, { type DisputeStatus, type DisputeReason } from "@/shared/api/superadmin.api";
 
-// * ─── Style maps ────────────────────────────────────────────────────────────
+// * style maps
 
 const STATUS_STYLE: Record<DisputeStatus, { label: string; bg: string; color: string }> = {
   open: { label: "Open", bg: "#eff6ff", color: "#1e40af" },
@@ -22,7 +23,7 @@ const REASON_LABELS: Record<DisputeReason, string> = {
 };
 
 /**
- * Superadmin disputes dashboard — lists all payment disputes platform-wide
+ * Superadmin disputes dashboard  - lists all payment disputes platform-wide
  * and lets admins advance them through the lifecycle (open → under_review → resolved/closed).
  */
 export default function DisputesPage() {
@@ -52,16 +53,44 @@ export default function DisputesPage() {
 
   const filtered = filter === "all" ? disputes : disputes.filter((d) => d.status === filter);
 
+  // * export helpers - format filtered disputes as rows for csv/pdf
+  const exportHeaders = ["ID", "Order", "Status", "Reason", "Created"];
+  function buildExportRows() {
+    return filtered.map((d) => [
+      d.id.slice(0, 8),
+      d.order_id.slice(0, 8),
+      STATUS_STYLE[d.status].label,
+      d.reason,
+      new Date(d.created_at).toLocaleDateString(),
+    ]);
+  }
+
+  function handleExportCSV() {
+    exportCSV(exportHeaders, buildExportRows(), "disputes");
+  }
+
+  function handleExportPDF() {
+    exportPDF("Payment Disputes", exportHeaders, buildExportRows(), "disputes");
+  }
+
   return (
-    <AdminLayout
-      title="Disputes"
-      subtitle="Review and resolve payment disputes across the platform."
-    >
+    <AdminLayout crumbs={["Trust", "Disputes"]}>
       {toastEl}
       <PH
-        crumbs={["Trust", "Disputes"]}
         title="Payment Disputes"
         sub="Review and resolve payment disputes across the platform."
+        actions={
+          <>
+            <button className="btn-sm" onClick={handleExportCSV}>
+              <MS n="download" size={13} />
+              Export CSV
+            </button>
+            <button className="btn-sm" onClick={handleExportPDF}>
+              <MS n="picture_as_pdf" size={13} />
+              Export PDF
+            </button>
+          </>
+        }
       />
 
       {/* KPI row */}

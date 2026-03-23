@@ -17,28 +17,16 @@ type PHProps = {
   sub?: string;
   actions?: ReactNode;
 };
-/** Page header with breadcrumbs, title, subtitle, and action buttons. */
-export function PH({ crumbs, title, sub, actions }: PHProps) {
+/** Page header with title, subtitle, and action buttons. Breadcrumb is rendered by AdminLayout. */
+export function PH({ crumbs: _crumbs, title, sub, actions }: PHProps) {
   return (
-    <>
-      {crumbs && (
-        <div className="crumbs">
-          {crumbs.map((c, i) => (
-            <span key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {i > 0 && <span style={{ opacity: 0.4 }}>/</span>}
-              <span className={i === crumbs.length - 1 ? "cur" : ""}>{c}</span>
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="ph">
-        <div>
-          <h1 className="app-title">{title}</h1>
-          {sub && <p className="app-sub">{sub}</p>}
-        </div>
-        {actions && <div className="ph-actions">{actions}</div>}
+    <div className="ph">
+      <div>
+        <h1 className="app-title">{title}</h1>
+        {sub && <p className="app-sub">{sub}</p>}
       </div>
-    </>
+      {actions && <div className="ph-actions">{actions}</div>}
+    </div>
   );
 }
 

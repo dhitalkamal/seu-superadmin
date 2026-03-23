@@ -78,15 +78,14 @@ export default function CompliancePage() {
   const totalControls = SOC2.flatMap((c) => c.ctrls).length;
 
   return (
-    <AdminLayout>
+    <AdminLayout crumbs={["Trust", "Compliance"]}>
       {toastEl}
       <PH
-        crumbs={["Trust", "Compliance"]}
         title="Compliance and audit"
         sub="Org verification status, certifications, and SOC 2 control template."
         actions={
           <>
-            <button className="btn-sm">
+            <button className="btn-sm" onClick={() => toast("Compliance pack download coming soon")}>
               <MS n="download" size={13} />
               Compliance pack
             </button>
@@ -184,7 +183,7 @@ export default function CompliancePage() {
       <div className="chart-grid-2" style={{ marginBottom: 20 }}>
         <div className="panel">
           <div className="panel-head">
-            <span className="panel-title">Organisation compliance breakdown</span>
+            <span className="panel-title">Organization compliance breakdown</span>
           </div>
           <div
             className="panel-body"
@@ -310,7 +309,7 @@ export default function CompliancePage() {
             }}
           >
             <MS n="info" size={13} style={{ verticalAlign: "middle", marginRight: 6 }} />
-            Template only. Connect to a real compliance tool (Vanta, Drata, etc.) for live status.
+            Template controls - connect to your compliance provider for live status.
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
             {SOC2.map((section) => (

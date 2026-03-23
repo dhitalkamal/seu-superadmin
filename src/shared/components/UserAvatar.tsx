@@ -1,25 +1,25 @@
 /**
- * UserAvatar — shows the user's photo if uploaded, otherwise picks one of
+ * UserAvatar  - shows the user's photo if uploaded, otherwise picks one of
  * 8 hand-crafted SVG illustrated characters based on a stable hash of the
  * user's ID. Every user always gets the same default avatar across sessions.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 type Props = {
-  /** User's uploaded avatar URL — if truthy we render an <img> instead. */
+  /** User's uploaded avatar URL  - if truthy we render an <img> instead. */
   src?: string | null;
   /** Stable identifier used to pick a default illustration (user ID, email, etc). */
   uid?: string;
-  /** Pixel size — used for both width and height. */
+  /** Pixel size  - used for both width and height. */
   size?: number;
-  /** Border radius in px — defaults to 16 (rounded square). */
+  /** Border radius in px  - defaults to 16 (rounded square). */
   radius?: number;
   /** Extra inline styles on the wrapper. */
   style?: React.CSSProperties;
 };
 
-// * ─── 8 illustrated character SVGs ──────────────────────────────────────────
+// * --- 8 illustrated character SVGs ------------------------------------------
 // Each is a self-contained SVG string rendered inside a coloured background.
 
 const PALETTES = [
@@ -35,7 +35,7 @@ const PALETTES = [
 
 /**
  * Builds an SVG string for a particular character variant.
- * @param idx - which of the 8 character designs to use (0–7)
+ * @param idx - which of the 8 character designs to use (0-7)
  * @returns raw SVG markup string
  */
 function buildCharacterSvg(idx: number): string {
@@ -145,7 +145,7 @@ function buildCharacterSvg(idx: number): string {
 }
 
 /**
- * Simple hash of a string to a number — deterministic so the same user
+ * Simple hash of a string to a number  - deterministic so the same user
  * always gets the same avatar.
  * @param str - input string (user ID, email, etc.)
  * @returns positive integer
@@ -159,7 +159,7 @@ function stableHash(str: string): number {
 }
 
 /**
- * Reusable avatar component — renders uploaded photo or a deterministic
+ * Reusable avatar component  - renders uploaded photo or a deterministic
  * illustrated character based on the user's ID.
  *
  * @param props.src - user's avatar URL (renders <img> if truthy)
@@ -183,21 +183,22 @@ export default function UserAvatar({ src, uid = "", size = 48, radius = 16, styl
     ...style,
   };
 
-  // ! only show the <img> if src is a real URL — not empty, not just whitespace
-  const hasValidSrc = typeof src === "string" && src.trim().length > 0 && src.startsWith("http");
+  const [imgFailed, setImgFailed] = useState(false);
+  const hasValidSrc = !imgFailed && typeof src === "string" && src.trim().length > 0 && src.startsWith("http");
 
   if (hasValidSrc) {
     return (
       <div style={wrapperStyle}>
         <img
           src={src}
-          alt="Avatar"
+          alt=""
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          onError={() => setImgFailed(true)}
         />
       </div>
     );
   }
 
-  // ! otherwise render the deterministic illustrated character
+  // falls back to the deterministic illustrated character
   return <div style={wrapperStyle} dangerouslySetInnerHTML={{ __html: svgMarkup }} />;
 }

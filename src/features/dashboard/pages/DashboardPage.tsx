@@ -4,17 +4,10 @@ import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS } from "@/shared/components/v8";
 import { AreaChart, Funnel, DonutChart, Bars } from "@/shared/components/charts";
 import superadminApi, { PLAN_CATALOGUE } from "@/shared/api/superadmin.api";
+import { exportCSV, exportPDF } from "@/shared/lib/export";
+import DateRangeFilter, { getRangeCutoff, type Range } from "@/shared/components/DateRangeFilter";
 
-// * static chart data; replace with API aggregations when available
-const CHURN_BARS = [
-  { l: "Apr", v: 2.6, c: "#dba13d" },
-  { l: "May", v: 2.4, c: "#dba13d" },
-  { l: "Jun", v: 2.8, c: "#e83151" },
-  { l: "Jul", v: 2.3, c: "#dba13d" },
-  { l: "Aug", v: 2.1, c: "#dba13d" },
-  { l: "Sep", v: 1.9, c: "#16a34a" },
-  { l: "Oct", v: 2.1, c: "#dba13d" },
-];
+const MO = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
 
 // * plan colors keyed by plan name
 const PLAN_COLORS: Record<string, string> = {
@@ -344,6 +337,7 @@ export default function DashboardPage() {
   const [order, setOrder] = useState<WidgetId[]>(loadOrder);
   const [hidden, setHidden] = useState<Set<WidgetId>>(loadHidden);
   const [showCustomize, setShowCustomize] = useState(false);
+  const [range, setRange] = useState<Range>("12mo");
 
   const toggleWidget = useCallback((id: WidgetId) => {
     setHidden((prev) => {
@@ -372,30 +366,62 @@ export default function DashboardPage() {
     queryKey: ["platform-events"],
     queryFn: () => superadminApi.listEvents(),
   });
-  // prefetch subscriptions; available for future per-org billing detail panels
-  const { data: _subscriptions = [] } = useQuery({
-    queryKey: ["subscriptions"],
-    queryFn: () => superadminApi.listSubscriptions(),
+  const { data: userAnalytics } = useQuery({
+    queryKey: ["user-analytics"],
+    queryFn: superadminApi.getUserAnalytics,
+  });
+  const { data: orgAnalytics } = useQuery({
+    queryKey: ["org-analytics"],
+    queryFn: superadminApi.getAnalytics,
   });
 
   const events = eventsPage?.results ?? [];
-  // build a price lookup from the plan catalogue and sum across active org plans
   const priceMap = Object.fromEntries(PLAN_CATALOGUE.map((p) => [p.name, p.price]));
-  const totalMrr = orgs.reduce((sum, o) => sum + (priceMap[o.plan] ?? 0), 0);
-  // build a 12-point historical trend ending at totalMrr (indicative shape)
+
+  // apply date range filter to screen data
+  const cutoff = getRangeCutoff(range);
+  const filteredOrgs = cutoff
+    ? orgs.filter((o) => new Date(o.created_at) >= cutoff)
+    : orgs;
+  const filteredUsers = cutoff
+    ? users.filter((u) => new Date(u.date_joined) >= cutoff)
+    : users;
+  const filteredEvents = cutoff
+    ? events.filter((e) => new Date(e.created_at) >= cutoff)
+    : events;
+
+  const totalMrr = filteredOrgs.reduce((sum, o) => sum + (priceMap[o.plan] ?? 0), 0);
+
+  // real cumulative MRR series from user monthly_series (scaled to MRR)
+  const userSeries = userAnalytics?.monthly_series ?? [];
   const mrrSeries =
-    totalMrr > 0
-      ? Array.from({ length: 12 }, (_, i) => Math.round(totalMrr * (0.5 + (i / 11) * 0.5)))
-      : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-  // exclude superusers (platform admins) from all user-facing counts
-  const regularUsers = users.filter((u) => !u.is_superuser);
-  const pending = orgs.filter((o) => o.status === "pending_review").length;
-  const active = orgs.filter((o) => o.status === "active").length;
-  const suspended = orgs.filter((o) => o.status === "suspended").length;
+    userSeries.length > 0 && totalMrr > 0
+      ? userSeries.map((v) =>
+          Math.round((v / Math.max(1, userSeries[userSeries.length - 1])) * totalMrr)
+        )
+      : (Array(12).fill(0) as number[]);
+
+  // real org monthly creation series for the churn/growth chart
+  const orgMonthlySeries = orgAnalytics?.orgs?.monthly_series ?? [];
+  const orgMonthlyBars = orgMonthlySeries.map((v, i) => ({
+    l: MO[i % 12],
+    v,
+    c:
+      v > (orgMonthlySeries[i - 1] ?? v)
+        ? "#16a34a"
+        : v < (orgMonthlySeries[i - 1] ?? v)
+          ? "#e83151"
+          : "#dba13d",
+  }));
+
+  const regularUsers = filteredUsers.filter((u) => !u.is_superuser);
+  const pending = filteredOrgs.filter((o) => o.status === "pending_review").length;
+  const active = filteredOrgs.filter((o) => o.status === "active").length;
+  const suspended = filteredOrgs.filter((o) => o.status === "suspended").length;
   const activeUsers = regularUsers.filter((u) => u.is_active).length;
   const verifiedUsers = regularUsers.filter((u) => u.is_email_verified).length;
-  const publishedEvents = events.filter((e) => e.status === "published").length;
-  const totalRegs = events.reduce((s, e) => s + (e.registered_count ?? 0), 0);
+  const publishedEvents = filteredEvents.filter((e) => e.status === "published").length;
+  const totalRegs = filteredEvents.reduce((s, e) => s + (e.registered_count ?? 0), 0);
   const loading = orgsLoading || usersLoading;
 
   // * map widget ids to their rendered JSX
@@ -464,7 +490,7 @@ export default function DashboardPage() {
                 <StatBox label="Suspended" value={suspended} note="blocked" />
                 <StatBox
                   label="Verified"
-                  value={orgs.filter((o) => o.is_verified).length}
+                  value={filteredOrgs.filter((o) => o.is_verified).length}
                   note="KYC done"
                 />
               </div>
@@ -475,7 +501,7 @@ export default function DashboardPage() {
               </div>
               <h4>Platform Status</h4>
               <p>
-                {orgs.length} workspaces, {regularUsers.length} users, {events.length} events.
+                {filteredOrgs.length} workspaces, {regularUsers.length} users, {filteredEvents.length} events.
                 {pending > 0 ? ` ${pending} orgs awaiting review.` : " All orgs reviewed."}
               </p>
               <div className="depth-status">
@@ -487,9 +513,9 @@ export default function DashboardPage() {
         );
 
       case "mrr": {
-        // compute per-plan counts and percentages from real org data
+        // compute per-plan counts and percentages from filtered org data
         const planCounts: Record<string, number> = {};
-        orgs.forEach((o) => {
+        filteredOrgs.forEach((o) => {
           planCounts[o.plan] = (planCounts[o.plan] ?? 0) + 1;
         });
         const planSegments = Object.entries(planCounts)
@@ -498,7 +524,7 @@ export default function DashboardPage() {
             plan,
             count,
             color: PLAN_COLORS[plan] ?? "#9ca3af",
-            pct: orgs.length > 0 ? Math.round((count / orgs.length) * 100) : 0,
+            pct: filteredOrgs.length > 0 ? Math.round((count / filteredOrgs.length) * 100) : 0,
           }));
         return (
           <div key="mrr" className="chart-grid-21">
@@ -540,7 +566,7 @@ export default function DashboardPage() {
                 <div className="donut-wrap">
                   <DonutChart
                     size={150}
-                    label={orgs.length.toString()}
+                    label={filteredOrgs.length.toString()}
                     sub="orgs"
                     segments={
                       planSegments.length > 0
@@ -587,13 +613,27 @@ export default function DashboardPage() {
             </div>
             <div className="panel">
               <div className="panel-head">
-                <span className="panel-title">Monthly churn</span>
+                <span className="panel-title">Org growth - monthly</span>
               </div>
               <div
                 className="panel-body"
                 style={{ display: "flex", flexDirection: "column", gap: 12 }}
               >
-                <Bars data={CHURN_BARS} height={140} />
+                {orgMonthlyBars.length > 0 ? (
+                  <Bars data={orgMonthlyBars} height={140} />
+                ) : (
+                  <div
+                    style={{
+                      height: 140,
+                      display: "grid",
+                      placeItems: "center",
+                      color: "var(--on-mut)",
+                      fontSize: 13,
+                    }}
+                  >
+                    No data yet
+                  </div>
+                )}
               </div>
             </div>
             <div className="panel">
@@ -621,7 +661,7 @@ export default function DashboardPage() {
             </div>
             <div className="panel-body">
               <div className="tl">
-                {orgs.slice(0, 6).map((org, i) => (
+                {filteredOrgs.slice(0, 6).map((org, i) => (
                   <div key={i} className="tl-it">
                     <div className="tl-mk">
                       <div
@@ -644,7 +684,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))}
-                {orgs.length === 0 && (
+                {filteredOrgs.length === 0 && (
                   <p
                     style={{
                       fontSize: 13,
@@ -652,7 +692,7 @@ export default function DashboardPage() {
                       fontFamily: "Manrope,sans-serif",
                     }}
                   >
-                    No organisations yet.
+                    No organizations yet.
                   </p>
                 )}
               </div>
@@ -666,7 +706,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <AdminLayout>
+    <AdminLayout crumbs={["Platform", "Dashboard"]}>
       {showCustomize && (
         <CustomizeDrawer
           order={order}
@@ -678,22 +718,56 @@ export default function DashboardPage() {
       )}
 
       <PH
-        crumbs={["Platform", "Dashboard"]}
         title="Platform dashboard"
         sub="Real-time metrics across all SEU workspaces."
         actions={
           <>
-            <button className="btn-sm">
-              <MS n="date_range" size={13} />
-              Last 12 months
-            </button>
+            <DateRangeFilter value={range} onChange={setRange} />
             <button className="btn-sm" onClick={() => setShowCustomize(true)}>
               <MS n="tune" size={13} />
               Customize
             </button>
-            <button className="btn-sm">
+            <button
+              className="btn-sm"
+              onClick={() => {
+                const cutoff = getRangeCutoff(range);
+                const filtered = cutoff
+                  ? orgs.filter((o) => new Date(o.created_at) >= cutoff)
+                  : orgs;
+                const headers = ["Name", "Status", "Plan", "Email", "Created"];
+                const rows = filtered.map((o) => [
+                  o.name,
+                  o.status,
+                  o.plan,
+                  o.contact_email,
+                  new Date(o.created_at).toLocaleDateString(),
+                ]);
+                exportCSV(headers, rows, "dashboard-orgs");
+              }}
+            >
               <MS n="download" size={13} />
-              Export
+              Export CSV
+            </button>
+            <button
+              className="btn-sm"
+              onClick={() => {
+                const cutoff = getRangeCutoff(range);
+                const filtered = cutoff
+                  ? orgs.filter((o) => new Date(o.created_at) >= cutoff)
+                  : orgs;
+                const headers = ["Name", "Status", "Plan", "Email", "Created"];
+                const rows = filtered.map((o) => [
+                  o.name,
+                  o.status,
+                  o.plan,
+                  o.contact_email,
+                  new Date(o.created_at).toLocaleDateString(),
+                ]);
+                exportPDF("Platform Dashboard - Organizations", headers, rows, "dashboard-orgs");
+              }}
+            >
+              <MS n="picture_as_pdf" size={13} />
+              Export PDF
             </button>
           </>
         }

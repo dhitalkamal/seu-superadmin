@@ -4,9 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, MS, useToast } from "@/shared/components/v8";
 import superadminApi from "@/shared/api/superadmin.api";
-import type { OrgDocument } from "@/shared/api/superadmin.api";
+import type { OrgDocument, OrgMember } from "@/shared/api/superadmin.api";
 
-/** Dedicated org verification page — full details + approve/reject with reason. */
+/** Dedicated org verification page  - full details + approve/reject with reason. */
 export default function OrgVerifyPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -26,22 +26,28 @@ export default function OrgVerifyPage() {
     enabled: !!id,
   });
 
+  const { data: members = [] } = useQuery({
+    queryKey: ["org-members", id],
+    queryFn: () => superadminApi.listOrgMembers(id!),
+    enabled: !!id && !!org,
+  });
+
   const approve = useMutation({
-    mutationFn: () => superadminApi.approveOrg(id!),
+    mutationFn: () => superadminApi.approveOrg(id!, reason.trim() || undefined),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orgs"] });
       qc.invalidateQueries({ queryKey: ["org", id] });
-      toast("Organisation approved — dashboard access granted");
+      toast("Organization approved  - dashboard access granted");
       navigate("/verification-queue");
     },
   });
 
   const reject = useMutation({
-    mutationFn: () => superadminApi.rejectOrg(id!),
+    mutationFn: () => superadminApi.rejectOrg(id!, reason.trim() || undefined),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orgs"] });
       qc.invalidateQueries({ queryKey: ["org", id] });
-      toast("Organisation rejected");
+      toast("Organization rejected");
       navigate("/verification-queue");
     },
   });
@@ -51,7 +57,7 @@ export default function OrgVerifyPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orgs"] });
       qc.invalidateQueries({ queryKey: ["org", id] });
-      toast("Organisation suspended");
+      toast("Organization suspended");
     },
   });
 
@@ -60,13 +66,13 @@ export default function OrgVerifyPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orgs"] });
       qc.invalidateQueries({ queryKey: ["org", id] });
-      toast("Organisation reinstated");
+      toast("Organization reinstated");
     },
   });
 
   if (isLoading || !org) {
     return (
-      <AdminLayout>
+      <AdminLayout crumbs={["Platform", "Verification Queue", "Loading..."]}>
         <div
           style={{
             padding: "48px 0",
@@ -75,7 +81,7 @@ export default function OrgVerifyPage() {
             fontFamily: "Manrope, sans-serif",
           }}
         >
-          {isLoading ? "Loading organisation..." : "Organisation not found."}
+          {isLoading ? "Loading organization..." : "Organization not found."}
         </div>
       </AdminLayout>
     );
@@ -110,12 +116,11 @@ export default function OrgVerifyPage() {
   };
 
   return (
-    <AdminLayout>
+    <AdminLayout crumbs={["Platform", "Verification Queue", org.name]}>
       {toastEl}
       <PH
-        crumbs={["Platform", "Verification Queue", org.name]}
         title={`Review: ${org.name}`}
-        sub={`Submitted ${new Date(org.created_at).toLocaleDateString()} — Status: ${statusLabel}`}
+        sub={`Submitted ${new Date(org.created_at).toLocaleDateString()}  - Status: ${statusLabel}`}
         actions={
           <button className="btn-sm" onClick={() => navigate(-1)}>
             <MS n="arrow_back" size={13} />
@@ -127,7 +132,7 @@ export default function OrgVerifyPage() {
       <div
         style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20, alignItems: "start" }}
       >
-        {/* left — org details */}
+        {/* left  - org details */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {/* header card */}
           <div className="panel">
@@ -194,14 +199,14 @@ export default function OrgVerifyPage() {
                 </div>
                 <div>
                   <p style={labelStyle}>Phone</p>
-                  <div style={fieldStyle}>{org.phone || "—"}</div>
+                  <div style={fieldStyle}>{org.phone || "-"}</div>
                 </div>
                 <div>
                   <p style={labelStyle}>Website</p>
-                  <div style={fieldStyle}>{org.website || "—"}</div>
+                  <div style={fieldStyle}>{org.website || "-"}</div>
                 </div>
                 <div>
-                  <p style={labelStyle}>Organisation Type</p>
+                  <p style={labelStyle}>Organization Type</p>
                   <div style={fieldStyle}>
                     {(org.org_type || "company")
                       .replace("_", " ")
@@ -230,7 +235,7 @@ export default function OrgVerifyPage() {
             <div className="panel-body" style={{ padding: 20 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <div>
-                  <p style={labelStyle}>Organisation ID</p>
+                  <p style={labelStyle}>Organization ID</p>
                   <div
                     style={{
                       ...fieldStyle,
@@ -279,15 +284,15 @@ export default function OrgVerifyPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <div style={{ gridColumn: org.address ? "1 / -1" : undefined }}>
                     <p style={labelStyle}>Address</p>
-                    <div style={fieldStyle}>{org.address || "—"}</div>
+                    <div style={fieldStyle}>{org.address || "-"}</div>
                   </div>
                   <div>
                     <p style={labelStyle}>City</p>
-                    <div style={fieldStyle}>{org.city || "—"}</div>
+                    <div style={fieldStyle}>{org.city || "-"}</div>
                   </div>
                   <div>
                     <p style={labelStyle}>Country</p>
-                    <div style={fieldStyle}>{org.country || "—"}</div>
+                    <div style={fieldStyle}>{org.country || "-"}</div>
                   </div>
                 </div>
               </div>
@@ -422,7 +427,7 @@ export default function OrgVerifyPage() {
                           {doc.doc_type
                             .replace("_", " ")
                             .replace(/^\w/, (c: string) => c.toUpperCase())}{" "}
-                          · {doc.file_size > 0 ? `${(doc.file_size / 1024).toFixed(1)} KB` : "—"} ·{" "}
+                          · {doc.file_size > 0 ? `${(doc.file_size / 1024).toFixed(1)} KB` : "-"}·{" "}
                           {new Date(doc.uploaded_at).toLocaleDateString()}
                         </p>
                       </div>
@@ -451,6 +456,119 @@ export default function OrgVerifyPage() {
             </div>
           </div>
 
+          {/* team members */}
+          <div className="panel">
+            <div className="panel-head">
+              <span className="panel-title">
+                Team members{" "}
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minWidth: 20,
+                    height: 20,
+                    padding: "0 6px",
+                    borderRadius: 10,
+                    background: "var(--mid)",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "var(--on-bg)",
+                    fontFamily: "'JetBrains Mono', monospace",
+                    marginLeft: 6,
+                  }}
+                >
+                  {members.length}
+                </span>
+              </span>
+            </div>
+            <div className="panel-body" style={{ padding: 0 }}>
+              {members.length === 0 ? (
+                <p
+                  style={{
+                    fontSize: 13,
+                    color: "var(--on-mut)",
+                    fontFamily: "Manrope, sans-serif",
+                    textAlign: "center",
+                    padding: "24px 0",
+                  }}
+                >
+                  No members found
+                </p>
+              ) : (
+                <table className="tbl" style={{ width: "100%" }}>
+                  <thead>
+                    <tr>
+                      <th>User ID</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th>Joined</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {members.map((m: OrgMember) => (
+                      <tr key={m.id}>
+                        <td
+                          style={{
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: 12,
+                          }}
+                        >
+                          {m.user_id.slice(0, 8)}
+                        </td>
+                        <td>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              padding: "2px 10px",
+                              borderRadius: 999,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              fontFamily: "Manrope, sans-serif",
+                              color: "#fff",
+                              background:
+                                m.role === "owner"
+                                  ? "navy"
+                                  : m.role === "admin"
+                                    ? "crimson"
+                                    : m.role === "manager"
+                                      ? "gold"
+                                      : "gray",
+                              ...(m.role === "manager" ? { color: "#000" } : {}),
+                            }}
+                          >
+                            {m.role}
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: m.is_active ? "#22c55e" : "#ef4444",
+                              fontFamily: "Manrope, sans-serif",
+                            }}
+                          >
+                            {m.is_active ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        <td
+                          style={{
+                            fontSize: 12,
+                            fontFamily: "Manrope, sans-serif",
+                            color: "var(--on-mut)",
+                          }}
+                        >
+                          {new Date(m.joined_at).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
           {/* verification checklist */}
           <div className="panel">
             <div className="panel-head">
@@ -461,7 +579,7 @@ export default function OrgVerifyPage() {
                 { label: "Contact email provided", ok: !!org.contact_email },
                 { label: "Phone number provided", ok: !!org.phone },
                 { label: "Website provided", ok: !!org.website },
-                { label: "Organisation name valid", ok: org.name.length >= 2 },
+                { label: "Organization name valid", ok: org.name.length >= 2 },
                 { label: "Slug is unique", ok: !!org.slug },
                 { label: "Address provided", ok: !!(org.city && org.country) },
                 { label: "Documents uploaded", ok: orgDocs.length > 0 },
@@ -514,7 +632,7 @@ export default function OrgVerifyPage() {
           </div>
         </div>
 
-        {/* right — actions panel */}
+        {/* right  - actions panel */}
         <div style={{ position: "sticky", top: 20 }}>
           <div className="panel">
             <div className="panel-head">
@@ -589,7 +707,7 @@ export default function OrgVerifyPage() {
                       }}
                     >
                       <MS n="verified" size={15} />
-                      {approve.isPending ? "Approving..." : "Approve Organisation"}
+                      {approve.isPending ? "Approving..." : "Approve Organization"}
                     </button>
                     <button
                       className="btn-sm danger"
@@ -603,7 +721,7 @@ export default function OrgVerifyPage() {
                       }}
                     >
                       <MS n="cancel" size={15} />
-                      {reject.isPending ? "Rejecting..." : "Reject Organisation"}
+                      {reject.isPending ? "Rejecting..." : "Reject Organization"}
                     </button>
                   </>
                 )}
@@ -620,7 +738,7 @@ export default function OrgVerifyPage() {
                     }}
                   >
                     <MS n="block" size={15} />
-                    {suspend.isPending ? "Suspending..." : "Suspend Organisation"}
+                    {suspend.isPending ? "Suspending..." : "Suspend Organization"}
                   </button>
                 )}
                 {isSuspended && (
@@ -636,7 +754,7 @@ export default function OrgVerifyPage() {
                     }}
                   >
                     <MS n="refresh" size={15} />
-                    {reinstate.isPending ? "Reinstating..." : "Reinstate Organisation"}
+                    {reinstate.isPending ? "Reinstating..." : "Reinstate Organization"}
                   </button>
                 )}
               </div>

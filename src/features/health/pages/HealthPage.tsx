@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS } from "@/shared/components/v8";
 import { SparkLine } from "@/shared/components/charts";
@@ -308,15 +308,14 @@ export default function HealthPage() {
     refetchInterval: REFETCH_MS,
   });
 
-  // live health checks for current status dots
-  const queries = SERVICES.map((s) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useQuery({
+  // live health checks - useQueries is the correct hook for a dynamic list
+  const queries = useQueries({
+    queries: SERVICES.map((s) => ({
       queryKey: ["health", s],
       queryFn: () => superadminApi.fetchHealth(s),
-      retry: false,
+      retry: false as const,
       refetchInterval: REFETCH_MS,
-    });
+    })),
   });
 
   // latest health round from intelligence service - used for infra status instead of direct calls

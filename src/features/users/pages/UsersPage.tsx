@@ -3,6 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, MS, useToast } from "@/shared/components/v8";
 import superadminApi, { type User } from "@/shared/api/superadmin.api";
+import { usePagination } from "@/shared/lib/usePagination";
+import { exportCSV, exportPDF } from "@/shared/lib/export";
+import Pagination from "@/shared/components/Pagination";
+import DateRangeFilter, { getRangeCutoff, type Range } from "@/shared/components/DateRangeFilter";
 
 function UserRow({ user, onAction }: { user: User; onAction: (a: string, id: string) => void }) {
   const initials = `${user.first_name?.[0] ?? ""}${user.last_name?.[0] ?? ""}`.toUpperCase() || "U";
@@ -94,6 +98,7 @@ export default function UsersPage() {
   const qc = useQueryClient();
   const { toast, toastEl } = useToast();
   const [search, setSearch] = useState("");
+  const [range, setRange] = useState<Range>("all");
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["users"],
@@ -123,28 +128,68 @@ export default function UsersPage() {
   // exclude superusers (platform admins) from the regular user list and counts
   const regularUsers = users.filter((u) => !u.is_superuser);
 
-  const filtered = regularUsers.filter(
+  // date range filter applied before search
+  const cutoff = getRangeCutoff(range);
+  const dateFiltered = cutoff
+    ? regularUsers.filter((u) => new Date(u.date_joined) >= cutoff)
+    : regularUsers;
+
+  // search filter on date-filtered list
+  const filtered = dateFiltered.filter(
     (u) =>
       !search ||
       u.email.toLowerCase().includes(search.toLowerCase()) ||
       `${u.first_name} ${u.last_name}`.toLowerCase().includes(search.toLowerCase())
   );
 
+  // paginate the final filtered list
+  const { page, totalPages, paged, from, to, total, setPage, next, prev } = usePagination(
+    filtered,
+    20
+  );
+
   const activeCount = regularUsers.filter((u) => u.is_active).length;
   const verifiedCount = regularUsers.filter((u) => u.is_email_verified).length;
 
+  /** Format user rows for export (name, email, status, verified, joined). */
+  function buildExportRows(data: User[]): string[][] {
+    return data.map((u) => [
+      `${u.first_name} ${u.last_name}`.trim(),
+      u.email,
+      u.is_active ? "Active" : "Inactive",
+      u.is_email_verified ? "Yes" : "No",
+      new Date(u.date_joined).toLocaleDateString(),
+    ]);
+  }
+
+  const exportHeaders = ["Name", "Email", "Status", "Verified", "Joined"];
+
   return (
-    <AdminLayout>
+    <AdminLayout crumbs={["Platform", "Users"]}>
       {toastEl}
       <PH
-        crumbs={["Platform", "Users"]}
         title="Platform users"
         sub="Search and manage users across all organizations."
         actions={
-          <button className="btn-sm">
-            <MS n="download" size={13} />
-            Export
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <DateRangeFilter value={range} onChange={setRange} />
+            <button
+              className="btn-sm"
+              onClick={() => exportCSV(exportHeaders, buildExportRows(filtered), "users")}
+            >
+              <MS n="download" size={13} />
+              Export CSV
+            </button>
+            <button
+              className="btn-sm"
+              onClick={() =>
+                exportPDF("Platform Users", exportHeaders, buildExportRows(filtered), "users")
+              }
+            >
+              <MS n="picture_as_pdf" size={13} />
+              Export PDF
+            </button>
+          </div>
         }
       />
 
@@ -225,7 +270,7 @@ export default function UsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((u) => (
+                {paged.map((u) => (
                   <UserRow key={u.id} user={u} onAction={handleAction} />
                 ))}
               </tbody>
@@ -243,6 +288,16 @@ export default function UsersPage() {
               </div>
             )}
           </div>
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            from={from}
+            to={to}
+            total={total}
+            onPrev={prev}
+            onNext={next}
+            onPage={setPage}
+          />
         </div>
       )}
     </AdminLayout>

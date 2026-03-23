@@ -1,9 +1,160 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS, useToast } from "@/shared/components/v8";
 import { exportCSV, exportPDF } from "@/shared/lib/export";
 import superadminApi, { type TicketPriority, type TicketStatus } from "@/shared/api/superadmin.api";
+
+type TicketFilter = {
+  status: TicketStatus | "all";
+  priority: TicketPriority | "all";
+};
+
+/** Dropdown filter panel for support tickets. */
+function TicketFilterDropdown({
+  filter,
+  onChange,
+  onClose,
+}: {
+  filter: TicketFilter;
+  onChange: (f: TicketFilter) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [onClose]);
+
+  const statuses: { value: TicketStatus | "all"; label: string }[] = [
+    { value: "all", label: "All statuses" },
+    { value: "open", label: "Open" },
+    { value: "in_progress", label: "In progress" },
+    { value: "escalated", label: "Escalated" },
+    { value: "resolved", label: "Resolved" },
+    { value: "closed", label: "Closed" },
+  ];
+
+  const priorities: { value: TicketPriority | "all"; label: string }[] = [
+    { value: "all", label: "All priorities" },
+    { value: "critical", label: "Critical" },
+    { value: "high", label: "High" },
+    { value: "med", label: "Med" },
+    { value: "low", label: "Low" },
+  ];
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: "absolute",
+        top: "calc(100% + 4px)",
+        right: 0,
+        zIndex: 100,
+        background: "var(--surface)",
+        border: "1px solid var(--mid)",
+        borderRadius: 10,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
+        padding: 14,
+        minWidth: 220,
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+      }}
+    >
+      <div>
+        <p
+          style={{
+            fontSize: 9.5,
+            fontWeight: 700,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: "var(--on-mut)",
+            marginBottom: 6,
+          }}
+        >
+          Status
+        </p>
+        <select
+          value={filter.status}
+          onChange={(e) => onChange({ ...filter, status: e.target.value as TicketStatus | "all" })}
+          style={{
+            width: "100%",
+            padding: "6px 10px",
+            borderRadius: 7,
+            border: "1px solid var(--outline)",
+            background: "var(--low)",
+            color: "var(--on-bg)",
+            fontSize: 12,
+            fontFamily: "Manrope, sans-serif",
+          }}
+        >
+          {statuses.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <p
+          style={{
+            fontSize: 9.5,
+            fontWeight: 700,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: "var(--on-mut)",
+            marginBottom: 6,
+          }}
+        >
+          Priority
+        </p>
+        <select
+          value={filter.priority}
+          onChange={(e) =>
+            onChange({ ...filter, priority: e.target.value as TicketPriority | "all" })
+          }
+          style={{
+            width: "100%",
+            padding: "6px 10px",
+            borderRadius: 7,
+            border: "1px solid var(--outline)",
+            background: "var(--low)",
+            color: "var(--on-bg)",
+            fontSize: 12,
+            fontFamily: "Manrope, sans-serif",
+          }}
+        >
+          {priorities.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <button
+        onClick={() => onChange({ status: "all", priority: "all" })}
+        style={{
+          padding: "5px 10px",
+          borderRadius: 7,
+          border: "1px solid var(--outline)",
+          background: "transparent",
+          fontSize: 11.5,
+          cursor: "pointer",
+          color: "var(--on-mut)",
+          fontFamily: "Manrope, sans-serif",
+          textAlign: "left",
+        }}
+      >
+        Reset filters
+      </button>
+    </div>
+  );
+}
 
 const PRIORITY_STYLE: Record<TicketPriority, { label: string; bg: string; color: string }> = {
   critical: { label: "Critical", bg: "#fee2e2", color: "#991b1b" },
@@ -29,6 +180,8 @@ export default function SupportPage() {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [priority, setPriority] = useState<"low" | "med" | "high" | "critical">("med");
+  const [showFilter, setShowFilter] = useState(false);
+  const [ticketFilter, setTicketFilter] = useState<TicketFilter>({ status: "all", priority: "all" });
 
   const { data: tickets = [], isLoading } = useQuery({
     queryKey: ["tickets"],
@@ -63,6 +216,16 @@ export default function SupportPage() {
     (t) => t.status === "resolved" || t.status === "closed"
   ).length;
 
+  // apply client-side filter
+  const filteredTickets = tickets.filter((t) => {
+    const matchStatus = ticketFilter.status === "all" ? true : t.status === ticketFilter.status;
+    const matchPriority =
+      ticketFilter.priority === "all" ? true : t.priority === ticketFilter.priority;
+    return matchStatus && matchPriority;
+  });
+
+  const hasActiveFilter = ticketFilter.status !== "all" || ticketFilter.priority !== "all";
+
   // * export helpers - format tickets as rows for csv/pdf
   const exportHeaders = ["Subject", "Status", "Priority", "Created"];
   function buildExportRows() {
@@ -94,10 +257,23 @@ export default function SupportPage() {
               <MS n="add" size={13} />
               New ticket
             </button>
-            <button className="btn-sm" onClick={() => toast("Filter coming soon")}>
-              <MS n="filter_list" size={13} />
-              Filter
-            </button>
+            <div style={{ position: "relative" }}>
+              <button
+                className="btn-sm"
+                onClick={() => setShowFilter((v) => !v)}
+                style={{ fontWeight: hasActiveFilter ? 700 : undefined }}
+              >
+                <MS n="filter_list" size={13} />
+                Filter{hasActiveFilter ? " · active" : ""}
+              </button>
+              {showFilter && (
+                <TicketFilterDropdown
+                  filter={ticketFilter}
+                  onChange={(f) => setTicketFilter(f)}
+                  onClose={() => setShowFilter(false)}
+                />
+              )}
+            </div>
             <button className="btn-sm" onClick={handleExportCSV}>
               <MS n="download" size={13} />
               Export CSV
@@ -226,7 +402,7 @@ export default function SupportPage() {
               color: "var(--on-mut)",
             }}
           >
-            {tickets.length} total
+            {hasActiveFilter ? `${filteredTickets.length} of ${tickets.length}` : `${tickets.length} total`}
           </span>
         </div>
         <div className="panel-body flush">
@@ -241,7 +417,7 @@ export default function SupportPage() {
             >
               Loading tickets...
             </div>
-          ) : tickets.length === 0 ? (
+          ) : filteredTickets.length === 0 ? (
             <div style={{ padding: "48px 0", textAlign: "center" }}>
               <MS
                 n="confirmation_number"
@@ -278,7 +454,7 @@ export default function SupportPage() {
                 </tr>
               </thead>
               <tbody>
-                {tickets.map((t) => {
+                {filteredTickets.map((t) => {
                   const p = PRIORITY_STYLE[t.priority];
                   const s = STATUS_STYLE[t.status];
                   return (

@@ -270,6 +270,48 @@ export type HealthPing = {
   checked_at: string;
 };
 
+// ===== Moderation types =====
+
+export type ModerationStatus =
+  | "pending"
+  | "under_review"
+  | "dismissed"
+  | "warned"
+  | "taken_down";
+
+export type ModerationCase = {
+  id: string;
+  content_type: string;
+  content_id: string;
+  content_title: string;
+  reason: string;
+  status: ModerationStatus;
+  reviewer_notes?: string;
+  organisation_id?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ModerationStats = {
+  pending_count: number;
+  decided_count: number;
+  approval_rate: number;
+  avg_resolution_hours: number;
+};
+
+// ===== Notification types =====
+
+export type PlatformNotification = {
+  id: string;
+  user_id: string;
+  notification_type: string;
+  channel: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+};
+
 // ===== Plan catalogue =====
 
 export type PlanName = "Free" | "Starter" | "Pro" | "NGO" | "Enterprise";
@@ -370,11 +412,15 @@ const superadminApi = {
       .get<ApiOk<OrgDocument[]>>(`${MGMT}/organizations/${orgId}/documents/`)
       .then((r) => r.data.data ?? []),
 
-  approveOrg: (id: string) =>
-    client.post<ApiOk<Org>>(`${MGMT}/organizations/${id}/approve/`).then((r) => r.data.data),
+  approveOrg: (id: string, reason?: string) =>
+    client
+      .post<ApiOk<Org>>(`${MGMT}/organizations/${id}/approve/`, reason ? { reason } : {})
+      .then((r) => r.data.data),
 
-  rejectOrg: (id: string) =>
-    client.post<ApiOk<Org>>(`${MGMT}/organizations/${id}/reject/`).then((r) => r.data.data),
+  rejectOrg: (id: string, reason?: string) =>
+    client
+      .post<ApiOk<Org>>(`${MGMT}/organizations/${id}/reject/`, reason ? { reason } : {})
+      .then((r) => r.data.data),
 
   suspendOrg: (id: string) =>
     client.post<ApiOk<Org>>(`${MGMT}/organizations/${id}/suspend/`).then((r) => r.data.data),
@@ -520,6 +566,48 @@ const superadminApi = {
     client
       .get<ApiOk<SubscriptionPayment[]>>(`${PAYMENT}/subscriptions/${subscriptionId}/payments/`)
       .then((r) => r.data.data),
+
+  // Moderation
+  listModerationCases: async (status?: string): Promise<ModerationCase[]> => {
+    const params = status ? { status } : {};
+    const r = await client.get(`${MGMT}/moderation/cases/`, { params });
+    return r.data?.data ?? r.data ?? [];
+  },
+
+  getModerationCase: async (id: string): Promise<ModerationCase> => {
+    const r = await client.get(`${MGMT}/moderation/cases/${id}/`);
+    return r.data?.data ?? r.data;
+  },
+
+  createModerationCase: async (payload: {
+    content_type: string;
+    content_id: string;
+    content_title: string;
+    reason: string;
+    organisation_id?: string;
+  }) => {
+    const r = await client.post(`${MGMT}/moderation/cases/`, payload);
+    return r.data;
+  },
+
+  updateModerationCase: async (
+    id: string,
+    payload: { status: string; reviewer_notes?: string }
+  ) => {
+    const r = await client.patch(`${MGMT}/moderation/cases/${id}/`, payload);
+    return r.data;
+  },
+
+  getModerationStats: async (): Promise<ModerationStats> => {
+    const r = await client.get(`${MGMT}/moderation/stats/`);
+    return r.data?.data ?? r.data;
+  },
+
+  // Notifications: list recent
+  listRecentNotifications: async (limit = 20): Promise<PlatformNotification[]> => {
+    const r = await client.get(`${NOTIFICATION}/notifications/`, { params: { limit } });
+    return r.data?.data ?? r.data ?? [];
+  },
 };
 
 export default superadminApi;
