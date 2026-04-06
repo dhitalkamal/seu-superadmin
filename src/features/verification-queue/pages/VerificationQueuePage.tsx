@@ -317,6 +317,15 @@ function CheckDot({ ok, title }: { ok: boolean; title: string }) {
   );
 }
 
+// *  Helpers
+
+/** Format avg_review_hours into a readable string. Returns "< 1h" for sub-hour values. */
+function formatAvgReviewTime(hours: number | undefined): string {
+  if (hours === undefined || hours === null) return "N/A";
+  if (hours < 1) return "< 1h";
+  return `${hours.toFixed(1)}h`;
+}
+
 // *  Page
 
 /** Verification queue - table of pending organizations awaiting admin review. */
@@ -332,6 +341,12 @@ export default function VerificationQueuePage() {
     queryKey: ["orgs"],
     queryFn: superadminApi.listOrgs,
     refetchInterval: 15_000,
+  });
+
+  const { data: analytics } = useQuery({
+    queryKey: ["analytics"],
+    queryFn: superadminApi.getAnalytics,
+    refetchInterval: 60_000,
   });
 
   const approve = useMutation({
@@ -464,8 +479,8 @@ export default function VerificationQueuePage() {
           icon="schedule"
           color="lav"
           label="Avg review time"
-          value="N/A"
-          trend="no data yet"
+          value={formatAvgReviewTime(analytics?.avg_review_hours)}
+          trend={analytics?.avg_review_hours !== undefined ? "from analytics API" : "no data yet"}
           trendKind="steady"
         />
       </div>

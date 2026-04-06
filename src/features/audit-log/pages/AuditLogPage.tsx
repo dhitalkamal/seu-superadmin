@@ -1,12 +1,203 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useRef, useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS, useToast } from "@/shared/components/v8";
-import superadminApi from "@/shared/api/superadmin.api";
+import superadminApi, { type DigestSchedule, type DigestFrequency } from "@/shared/api/superadmin.api";
 import { usePagination } from "@/shared/lib/usePagination";
 import { exportCSV, exportPDF } from "@/shared/lib/export";
 import Pagination from "@/shared/components/Pagination";
 import DateRangeFilter, { getRangeCutoff, type Range } from "@/shared/components/DateRangeFilter";
+
+// *  Digest schedule panel
+
+/** Dropdown panel for scheduling audit log digest emails. Shows form + existing schedules. */
+function DigestPanel({ onClose }: { onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const qc = useQueryClient();
+  const [email, setEmail] = useState("");
+  const [frequency, setFrequency] = useState<DigestFrequency>("weekly");
+
+  const { data: schedules = [], isLoading } = useQuery({
+    queryKey: ["digest-schedules"],
+    queryFn: superadminApi.listDigestSchedules,
+  });
+
+  const create = useMutation({
+    mutationFn: (payload: { email: string; frequency: DigestFrequency }) =>
+      superadminApi.createDigestSchedule(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["digest-schedules"] });
+      setEmail("");
+    },
+  });
+
+  const toggle = useMutation({
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
+      superadminApi.updateDigestSchedule(id, { is_active }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["digest-schedules"] });
+    },
+  });
+
+  // close on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [onClose]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    create.mutate({ email: email.trim(), frequency });
+  }
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: "absolute",
+        top: "calc(100% + 4px)",
+        right: 0,
+        zIndex: 100,
+        background: "var(--surface)",
+        border: "1px solid var(--mid)",
+        borderRadius: 10,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
+        padding: 16,
+        minWidth: 300,
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+      }}
+    >
+      {/* form header */}
+      <p
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "var(--on-mut)",
+          margin: 0,
+        }}
+      >
+        Schedule digest
+      </p>
+
+      {/* create form */}
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="recipient@example.com"
+          required
+          style={{
+            padding: "6px 10px",
+            borderRadius: 7,
+            border: "1px solid var(--outline)",
+            background: "var(--low)",
+            color: "var(--on-bg)",
+            fontSize: 12.5,
+            fontFamily: "Manrope, sans-serif",
+            width: "100%",
+            boxSizing: "border-box",
+          }}
+        />
+        <div style={{ display: "flex", gap: 6 }}>
+          <select
+            value={frequency}
+            onChange={(e) => setFrequency(e.target.value as DigestFrequency)}
+            style={{
+              flex: 1,
+              padding: "6px 10px",
+              borderRadius: 7,
+              border: "1px solid var(--outline)",
+              background: "var(--low)",
+              color: "var(--on-bg)",
+              fontSize: 12.5,
+              fontFamily: "Manrope, sans-serif",
+            }}
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+          <button
+            type="submit"
+            className="btn-sm primary"
+            disabled={create.isPending}
+            style={{ fontSize: 12, padding: "6px 14px", flexShrink: 0 }}
+          >
+            {create.isPending ? "Adding..." : "Add"}
+          </button>
+        </div>
+      </form>
+
+      {/* existing schedules list */}
+      {isLoading ? (
+        <p style={{ fontSize: 12, color: "var(--on-mut)", margin: 0 }}>Loading schedules...</p>
+      ) : schedules.length === 0 ? (
+        <p style={{ fontSize: 12, color: "var(--on-mut)", margin: 0 }}>No schedules yet.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <p
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--on-mut)",
+              margin: 0,
+            }}
+          >
+            Active schedules
+          </p>
+          {schedules.map((s: DigestSchedule) => (
+            <div
+              key={s.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "6px 10px",
+                borderRadius: 7,
+                border: "1px solid var(--outline)",
+                background: s.is_active ? "var(--low)" : "transparent",
+                gap: 8,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 12.5, fontWeight: 600 }}>{s.email}</div>
+                <div
+                  style={{
+                    fontSize: 10.5,
+                    color: "var(--on-mut)",
+                    fontFamily: "JetBrains Mono, monospace",
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {s.frequency}
+                </div>
+              </div>
+              <button
+                className="btn-sm"
+                onClick={() => toggle.mutate({ id: s.id, is_active: !s.is_active })}
+                disabled={toggle.isPending}
+                style={{ fontSize: 11, padding: "3px 8px" }}
+              >
+                {s.is_active ? "Pause" : "Resume"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** color a dot next to the action badge based on the event type category */
 function actionColor(eventType: string): string {
@@ -38,6 +229,8 @@ function initials(name: string): string {
 export default function AuditLogPage() {
   const { toastEl, toast } = useToast();
   const [range, setRange] = useState<Range>("all");
+  const [showDigest, setShowDigest] = useState(false);
+  const digestRef = useRef<HTMLDivElement>(null);
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["audit-log"],
@@ -148,10 +341,13 @@ export default function AuditLogPage() {
               <MS n="picture_as_pdf" size={13} />
               Export PDF
             </button>
-            <button className="btn-sm" onClick={() => toast("Scheduled digest coming soon")}>
-              <MS n="schedule_send" size={13} />
-              Schedule digest
-            </button>
+            <div ref={digestRef} style={{ position: "relative" }}>
+              <button className="btn-sm" onClick={() => setShowDigest((v) => !v)}>
+                <MS n="schedule_send" size={13} />
+                Schedule digest
+              </button>
+              {showDigest && <DigestPanel onClose={() => setShowDigest(false)} />}
+            </div>
           </>
         }
       />

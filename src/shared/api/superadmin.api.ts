@@ -177,6 +177,41 @@ export type PlatformAnalytics = {
     open: number;
     escalated: number;
   };
+  avg_review_hours?: number;
+};
+
+// ===== Digest schedule types =====
+
+export type DigestFrequency = "daily" | "weekly" | "monthly";
+
+export type DigestSchedule = {
+  id: string;
+  email: string;
+  frequency: DigestFrequency;
+  is_active: boolean;
+  created_by: string;
+  created_at: string;
+};
+
+// ===== Compliance control types =====
+
+export type ComplianceStatus = "pass" | "fail" | "na";
+
+export type ComplianceControl = {
+  id: string;
+  category: string;
+  name: string;
+  description?: string;
+  status: ComplianceStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ComplianceSummary = {
+  total: number;
+  passing: number;
+  failing: number;
+  na: number;
 };
 
 export type EventAnalytics = {
@@ -607,6 +642,59 @@ const superadminApi = {
   listRecentNotifications: async (limit = 20): Promise<PlatformNotification[]> => {
     const r = await client.get(`${NOTIFICATION}/notifications/`, { params: { limit } });
     return r.data?.data ?? r.data ?? [];
+  },
+
+  // Notifications: digest schedules
+  listDigestSchedules: async (): Promise<DigestSchedule[]> => {
+    const r = await client.get(`${NOTIFICATION}/digest-schedules/`);
+    return r.data?.data ?? r.data ?? [];
+  },
+
+  createDigestSchedule: async (payload: { email: string; frequency: DigestFrequency }) => {
+    const r = await client.post(`${NOTIFICATION}/digest-schedules/`, payload);
+    return r.data;
+  },
+
+  updateDigestSchedule: async (
+    id: string,
+    payload: { is_active?: boolean; frequency?: DigestFrequency }
+  ) => {
+    const r = await client.patch(`${NOTIFICATION}/digest-schedules/${id}/`, payload);
+    return r.data;
+  },
+
+  // Compliance controls
+  listComplianceControls: async (): Promise<ComplianceControl[]> => {
+    const r = await client.get(`${MGMT}/compliance/controls/`);
+    return r.data?.data ?? r.data ?? [];
+  },
+
+  createComplianceControl: async (payload: {
+    category: string;
+    name: string;
+    description?: string;
+    status: ComplianceStatus;
+  }) => {
+    const r = await client.post(`${MGMT}/compliance/controls/`, payload);
+    return r.data;
+  },
+
+  updateComplianceControl: async (
+    id: string,
+    payload: { status?: ComplianceStatus; name?: string; description?: string }
+  ) => {
+    const r = await client.patch(`${MGMT}/compliance/controls/${id}/`, payload);
+    return r.data;
+  },
+
+  deleteComplianceControl: async (id: string) => {
+    const r = await client.delete(`${MGMT}/compliance/controls/${id}/`);
+    return r.data;
+  },
+
+  getComplianceSummary: async (): Promise<ComplianceSummary> => {
+    const r = await client.get(`${MGMT}/compliance/summary/`);
+    return r.data?.data ?? r.data;
   },
 };
 

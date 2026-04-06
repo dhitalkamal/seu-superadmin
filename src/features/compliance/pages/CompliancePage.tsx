@@ -1,43 +1,13 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS, useToast } from "@/shared/components/v8";
-import superadminApi from "@/shared/api/superadmin.api";
+import superadminApi, {
+  type ComplianceControl,
+  type ComplianceStatus,
+} from "@/shared/api/superadmin.api";
 
-const SOC2 = [
-  {
-    cat: "Security",
-    ctrls: [
-      { n: "CC1.1 Integrity and ethics", s: "pass" },
-      { n: "CC2.1 Board oversight", s: "pass" },
-      { n: "CC3.1 Risk assessment", s: "pass" },
-      { n: "CC4.1 Monitoring", s: "pass" },
-      { n: "CC5.1 Control activities", s: "pass" },
-      { n: "CC6.1 Logical access", s: "pass" },
-      { n: "CC6.6 Encryption at rest", s: "pass" },
-      { n: "CC7.1 Anomaly detection", s: "prog" },
-      { n: "CC8.1 Change management", s: "pass" },
-      { n: "CC9.1 Risk mitigation", s: "pass" },
-    ],
-  },
-  {
-    cat: "Availability",
-    ctrls: [
-      { n: "A1.1 Capacity planning", s: "pass" },
-      { n: "A1.2 Recovery RTO/RPO", s: "pass" },
-      { n: "A1.3 BCP testing", s: "prog" },
-    ],
-  },
-  {
-    cat: "Confidentiality",
-    ctrls: [
-      { n: "C1.1 Classification", s: "pass" },
-      { n: "C1.2 Disposal", s: "pass" },
-      { n: "C1.3 Vendor access", s: "prog" },
-    ],
-  },
-];
-
+// static certification cards - informational display only
 const CERTS = [
   {
     c: "SOC 2 Type II",
@@ -52,11 +22,260 @@ const CERTS = [
   { c: "HIPAA", s: "N/A", e: "-", ic: "remove", col: "#6b6c75", iss: "-" },
 ];
 
+// categories the API groups controls into
+const KNOWN_CATEGORIES = ["security", "availability", "confidentiality", "audit"];
+
+/** Label for a raw category slug. */
+function categoryLabel(cat: string): string {
+  const map: Record<string, string> = {
+    security: "Security",
+    availability: "Availability",
+    confidentiality: "Confidentiality",
+    audit: "Audit",
+  };
+  return map[cat] ?? cat.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
+/** Color and icon for a compliance status value. */
+function statusStyle(status: ComplianceStatus): { color: string; icon: string } {
+  if (status === "pass") return { color: "var(--success)", icon: "check_circle" };
+  if (status === "fail") return { color: "#e83151", icon: "cancel" };
+  return { color: "var(--on-mut)", icon: "remove_circle" };
+}
+
+// *  New control inline form
+
+type NewControlFormProps = {
+  defaultCategory?: string;
+  onClose: () => void;
+};
+
+/** Inline form for creating a new compliance control. */
+function NewControlForm({ defaultCategory = "security", onClose }: NewControlFormProps) {
+  const qc = useQueryClient();
+  const [category, setCategory] = useState(defaultCategory);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [status, setStatus] = useState<ComplianceStatus>("pass");
+
+  const create = useMutation({
+    mutationFn: (payload: {
+      category: string;
+      name: string;
+      description?: string;
+      status: ComplianceStatus;
+    }) => superadminApi.createComplianceControl(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["compliance-controls"] });
+      qc.invalidateQueries({ queryKey: ["compliance-summary"] });
+      onClose();
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    create.mutate({
+      category: category.trim(),
+      name: name.trim(),
+      description: description.trim() || undefined,
+      status,
+    });
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      style={{
+        padding: "12px 16px",
+        background: "var(--low)",
+        borderRadius: 10,
+        border: "1px solid var(--outline)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        marginBottom: 12,
+      }}
+    >
+      <p
+        style={{
+          fontSize: 10.5,
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "var(--on-mut)",
+          margin: 0,
+        }}
+      >
+        New control
+      </p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Control name"
+          required
+          style={{
+            padding: "6px 10px",
+            borderRadius: 7,
+            border: "1px solid var(--outline)",
+            background: "var(--surface)",
+            color: "var(--on-bg)",
+            fontSize: 12.5,
+            fontFamily: "Manrope, sans-serif",
+          }}
+        />
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 7,
+            border: "1px solid var(--outline)",
+            background: "var(--surface)",
+            color: "var(--on-bg)",
+            fontSize: 12.5,
+            fontFamily: "Manrope, sans-serif",
+          }}
+        >
+          {KNOWN_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {categoryLabel(c)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <input
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Description (optional)"
+        style={{
+          padding: "6px 10px",
+          borderRadius: 7,
+          border: "1px solid var(--outline)",
+          background: "var(--surface)",
+          color: "var(--on-bg)",
+          fontSize: 12.5,
+          fontFamily: "Manrope, sans-serif",
+        }}
+      />
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value as ComplianceStatus)}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 7,
+            border: "1px solid var(--outline)",
+            background: "var(--surface)",
+            color: "var(--on-bg)",
+            fontSize: 12.5,
+            fontFamily: "Manrope, sans-serif",
+          }}
+        >
+          <option value="pass">Pass</option>
+          <option value="fail">Fail</option>
+          <option value="na">N/A</option>
+        </select>
+        <button
+          type="submit"
+          className="btn-sm primary"
+          disabled={create.isPending}
+          style={{ fontSize: 12, padding: "6px 14px" }}
+        >
+          {create.isPending ? "Saving..." : "Save"}
+        </button>
+        <button
+          type="button"
+          className="btn-sm"
+          onClick={onClose}
+          style={{ fontSize: 12, padding: "6px 14px" }}
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// *  Single control row
+
+/** One compliance control row with a clickable status toggle. */
+function ControlRow({ ctrl }: { ctrl: ComplianceControl }) {
+  const qc = useQueryClient();
+
+  const update = useMutation({
+    mutationFn: (status: ComplianceStatus) =>
+      superadminApi.updateComplianceControl(ctrl.id, { status }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["compliance-controls"] });
+      qc.invalidateQueries({ queryKey: ["compliance-summary"] });
+    },
+  });
+
+  // cycle through pass -> fail -> na -> pass
+  function nextStatus(current: ComplianceStatus): ComplianceStatus {
+    if (current === "pass") return "fail";
+    if (current === "fail") return "na";
+    return "pass";
+  }
+
+  const { color, icon } = statusStyle(ctrl.status);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "5px 0",
+        borderBottom: "1px solid var(--outline)",
+        fontSize: 12,
+      }}
+    >
+      {/* clickable icon cycles status */}
+      <button
+        title={`Status: ${ctrl.status} - click to change`}
+        onClick={() => update.mutate(nextStatus(ctrl.status))}
+        disabled={update.isPending}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          padding: 0,
+          display: "flex",
+          alignItems: "center",
+          flexShrink: 0,
+        }}
+      >
+        <MS n={icon} size={14} style={{ color }} />
+      </button>
+      <span style={{ color: "var(--on-var)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {ctrl.name}
+      </span>
+    </div>
+  );
+}
+
+// *  Page
+
 export default function CompliancePage() {
   const { toastEl, toast } = useToast();
+  const [showNewControl, setShowNewControl] = useState(false);
+  const [showNewAudit, setShowNewAudit] = useState(false);
 
   const { data: orgs = [] } = useQuery({ queryKey: ["orgs"], queryFn: superadminApi.listOrgs });
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: superadminApi.listUsers });
+
+  const { data: controls = [], isLoading: controlsLoading } = useQuery({
+    queryKey: ["compliance-controls"],
+    queryFn: superadminApi.listComplianceControls,
+  });
+
+  const { data: summary } = useQuery({
+    queryKey: ["compliance-summary"],
+    queryFn: superadminApi.getComplianceSummary,
+  });
 
   const verifiedOrgs = orgs.filter((o) => o.is_verified).length;
   const activeOrgs = orgs.filter((o) => o.status === "active").length;
@@ -74,22 +293,36 @@ export default function CompliancePage() {
     });
   }, [orgs]);
 
-  const passCount = SOC2.flatMap((c) => c.ctrls).filter((c) => c.s === "pass").length;
-  const totalControls = SOC2.flatMap((c) => c.ctrls).length;
+  // group controls by category for display
+  const grouped = useMemo(() => {
+    const map = new Map<string, ComplianceControl[]>();
+    for (const ctrl of controls) {
+      const cat = ctrl.category ?? "other";
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(ctrl);
+    }
+    return map;
+  }, [controls]);
+
+  const passCount = summary?.passing ?? controls.filter((c) => c.status === "pass").length;
+  const totalControls = summary?.total ?? controls.length;
 
   return (
     <AdminLayout crumbs={["Trust", "Compliance"]}>
       {toastEl}
       <PH
         title="Compliance and audit"
-        sub="Org verification status, certifications, and SOC 2 control template."
+        sub="Org verification status, certifications, and compliance controls."
         actions={
           <>
             <button className="btn-sm" onClick={() => toast("Compliance pack download coming soon")}>
               <MS n="download" size={13} />
               Compliance pack
             </button>
-            <button className="btn-sm primary" onClick={() => toast("New audit logged")}>
+            <button
+              className="btn-sm primary"
+              onClick={() => setShowNewAudit((v) => !v)}
+            >
               <MS n="add" size={13} />
               New audit
             </button>
@@ -282,76 +515,105 @@ export default function CompliancePage() {
         </div>
       </div>
 
-      {/* SOC 2 control template */}
+      {/* compliance controls panel */}
       <div className="panel">
         <div className="panel-head">
-          <span className="panel-title">SOC 2 control template</span>
-          <span
-            style={{
-              fontFamily: "JetBrains Mono, monospace",
-              fontSize: 10.5,
-              color: "var(--success)",
-            }}
-          >
-            {passCount} / {totalControls} passing
-          </span>
+          <span className="panel-title">Compliance controls</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span
+              style={{
+                fontFamily: "JetBrains Mono, monospace",
+                fontSize: 10.5,
+                color: "var(--success)",
+              }}
+            >
+              {passCount} / {totalControls} passing
+            </span>
+            <button
+              className="btn-sm"
+              onClick={() => setShowNewControl((v) => !v)}
+              style={{ fontSize: 11 }}
+            >
+              <MS n="add" size={12} />
+              New control
+            </button>
+          </div>
         </div>
         <div className="panel-body">
-          <div
-            style={{
-              padding: "8px 12px",
-              background: "var(--low)",
-              borderRadius: 8,
-              fontSize: 11.5,
-              color: "var(--on-mut)",
-              marginBottom: 16,
-              fontFamily: "Manrope, sans-serif",
-            }}
-          >
-            <MS n="info" size={13} style={{ verticalAlign: "middle", marginRight: 6 }} />
-            Template controls - connect to your compliance provider for live status.
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-            {SOC2.map((section) => (
-              <div key={section.cat}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                    color: "var(--on-mut)",
-                    marginBottom: 8,
-                  }}
-                >
-                  {section.cat}
-                </div>
-                {section.ctrls.map((ctrl) => (
+          {/* new audit form - creates a control with category=audit */}
+          {showNewAudit && (
+            <NewControlForm
+              defaultCategory="audit"
+              onClose={() => setShowNewAudit(false)}
+            />
+          )}
+
+          {/* new control form */}
+          {showNewControl && (
+            <NewControlForm onClose={() => setShowNewControl(false)} />
+          )}
+
+          {controlsLoading ? (
+            <div
+              style={{
+                padding: "40px 0",
+                textAlign: "center",
+                color: "var(--on-mut)",
+                fontFamily: "Manrope, sans-serif",
+              }}
+            >
+              Loading controls...
+            </div>
+          ) : controls.length === 0 ? (
+            <div style={{ padding: "32px 0", textAlign: "center" }}>
+              <MS
+                n="checklist"
+                size={32}
+                style={{ display: "block", margin: "0 auto 12px", opacity: 0.25 }}
+              />
+              <p
+                style={{
+                  fontFamily: "Space Grotesk, sans-serif",
+                  fontWeight: 600,
+                  fontSize: 15,
+                  marginBottom: 6,
+                }}
+              >
+                No controls yet
+              </p>
+              <p
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--on-mut)",
+                  fontFamily: "Manrope, sans-serif",
+                }}
+              >
+                Use the New control button above to add compliance controls.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+              {Array.from(grouped.entries()).map(([cat, ctrls]) => (
+                <div key={cat}>
                   <div
-                    key={ctrl.n}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "5px 0",
-                      borderBottom: "1px solid var(--outline)",
-                      fontSize: 12,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      color: "var(--on-mut)",
+                      marginBottom: 8,
                     }}
                   >
-                    <MS
-                      n={ctrl.s === "pass" ? "check_circle" : "pending"}
-                      size={14}
-                      style={{
-                        color: ctrl.s === "pass" ? "var(--success)" : "var(--warning)",
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span style={{ color: "var(--on-var)" }}>{ctrl.n}</span>
+                    {categoryLabel(cat)}
                   </div>
-                ))}
-              </div>
-            ))}
-          </div>
+                  {ctrls.map((ctrl) => (
+                    <ControlRow key={ctrl.id} ctrl={ctrl} />
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </AdminLayout>
