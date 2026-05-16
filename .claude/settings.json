@@ -1,0 +1,6 @@
+{
+  "enabledPlugins": {
+    "mongodb@claude-plugins-official": false
+  },
+  "_mcpAutoConfigured": true
+}
