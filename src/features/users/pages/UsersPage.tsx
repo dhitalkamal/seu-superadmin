@@ -1,66 +1,248 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
-import superadminApi from "@/shared/api/superadmin.api";
-import type { User } from "@/shared/api/superadmin.api";
+import { PH, MS, useToast } from "@/shared/components/v8";
+import superadminApi, { type User } from "@/shared/api/superadmin.api";
 
-/** Single user table row. */
-function UserRow({ user }: { user: User }) {
+function UserRow({ user, onAction }: { user: User; onAction: (a: string, id: string) => void }) {
+  const initials = `${user.first_name?.[0] ?? ""}${user.last_name?.[0] ?? ""}`.toUpperCase() || "U";
   return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50">
-      <td className="py-3 px-4">
-        <p className="text-sm font-semibold text-gray-900">{user.first_name} {user.last_name}</p>
-        <p className="text-xs text-gray-400">{user.email}</p>
+    <tr>
+      <td>
+        <div className="ev-cell">
+          <div
+            className="av-sm"
+            style={{
+              background: "linear-gradient(135deg,#050a26,#121d3f)",
+              display: "grid",
+              placeItems: "center",
+              fontSize: 10,
+              fontWeight: 700,
+            }}
+          >
+            {initials}
+          </div>
+          <div>
+            <div className="ev-name">
+              {user.first_name} {user.last_name}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--on-mut)" }}>{user.email}</div>
+          </div>
+        </div>
       </td>
-      <td className="py-3 px-4">
-        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${user.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
-          {user.is_active ? "Active" : "Inactive"}
-        </span>
+      <td>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {user.is_superuser && (
+            <span className="pill crl" style={{ fontSize: 9 }}>
+              Superuser
+            </span>
+          )}
+          {user.is_staff && (
+            <span className="pill scheduled" style={{ fontSize: 9 }}>
+              Staff
+            </span>
+          )}
+          {!user.is_staff && !user.is_superuser && (
+            <span className="pill draft" style={{ fontSize: 9 }}>
+              User
+            </span>
+          )}
+        </div>
       </td>
-      <td className="py-3 px-4">
-        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${user.is_email_verified ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-500"}`}>
-          {user.is_email_verified ? "Verified" : "Unverified"}
-        </span>
+      <td>
+        <div style={{ display: "flex", gap: 4 }}>
+          <span className={`pill ${user.is_active ? "active" : "suspended"}`}>
+            {user.is_active ? "Active" : "Inactive"}
+          </span>
+          {user.is_email_verified && (
+            <span className="pill active" style={{ fontSize: 9 }}>
+              Verified
+            </span>
+          )}
+        </div>
       </td>
-      <td className="py-3 px-4 text-xs text-gray-400">{new Date(user.date_joined).toLocaleDateString()}</td>
-      <td className="py-3 px-4">
-        {user.is_staff && <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">Staff</span>}
+      <td style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 11.5 }}>
+        {user.last_login ? new Date(user.last_login).toLocaleDateString() : "Never"}
+      </td>
+      <td style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 11.5 }}>
+        {new Date(user.date_joined).toLocaleDateString()}
+      </td>
+      <td>
+        {user.is_active ? (
+          <button
+            className="btn-sm danger"
+            style={{ fontSize: 11, padding: "4px 10px" }}
+            onClick={() => onAction("suspend", user.id)}
+          >
+            Suspend
+          </button>
+        ) : (
+          <button
+            className="btn-sm"
+            style={{ fontSize: 11, padding: "4px 10px" }}
+            onClick={() => onAction("activate", user.id)}
+          >
+            Activate
+          </button>
+        )}
       </td>
     </tr>
   );
 }
 
-/** Superadmin users list page. */
 export default function UsersPage() {
-  const { data: users = [], isLoading } = useQuery({ queryKey: ["users"], queryFn: superadminApi.listUsers });
-  const active = users.filter((u) => u.is_active).length;
-  const verified = users.filter((u) => u.is_email_verified).length;
+  const qc = useQueryClient();
+  const { toast, toastEl } = useToast();
+  const [search, setSearch] = useState("");
+
+  const { data: users = [], isLoading } = useQuery({
+    queryKey: ["users"],
+    queryFn: superadminApi.listUsers,
+  });
+
+  const suspend = useMutation({
+    mutationFn: superadminApi.suspendUser,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+      toast("User suspended");
+    },
+  });
+  const activate = useMutation({
+    mutationFn: superadminApi.activateUser,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+      toast("User activated");
+    },
+  });
+
+  function handleAction(action: string, id: string) {
+    if (action === "suspend") suspend.mutate(id);
+    else if (action === "activate") activate.mutate(id);
+  }
+
+  // exclude superusers (platform admins) from the regular user list and counts
+  const regularUsers = users.filter((u) => !u.is_superuser);
+
+  const filtered = regularUsers.filter(
+    (u) =>
+      !search ||
+      u.email.toLowerCase().includes(search.toLowerCase()) ||
+      `${u.first_name} ${u.last_name}`.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const activeCount = regularUsers.filter((u) => u.is_active).length;
+  const verifiedCount = regularUsers.filter((u) => u.is_email_verified).length;
 
   return (
     <AdminLayout>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Users</h1>
-        <span className="text-sm text-gray-400">{users.length} total · {active} active · {verified} verified</span>
+      {toastEl}
+      <PH
+        crumbs={["Platform", "Users"]}
+        title="Platform users"
+        sub="Search and manage users across all organizations."
+        actions={
+          <button className="btn-sm">
+            <MS n="download" size={13} />
+            Export
+          </button>
+        }
+      />
+
+      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+        {[
+          ["Total", regularUsers.length],
+          ["Active", activeCount],
+          ["Verified", verifiedCount],
+          ["Staff", regularUsers.filter((u) => u.is_staff).length],
+        ].map(([l, n]) => (
+          <div
+            key={String(l)}
+            style={{
+              padding: "10px 16px",
+              background: "var(--surface)",
+              border: "1px solid var(--outline)",
+              borderRadius: 10,
+              fontSize: 12.5,
+              fontFamily: "Manrope, sans-serif",
+            }}
+          >
+            <span style={{ fontWeight: 700 }}>{n}</span>{" "}
+            <span style={{ color: "var(--on-mut)" }}>{l}</span>
+          </div>
+        ))}
+        <div
+          style={{
+            marginLeft: "auto",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            background: "var(--surface)",
+            border: "1px solid var(--outline)",
+            borderRadius: 10,
+            padding: "7px 12px",
+          }}
+        >
+          <MS n="search" size={16} style={{ color: "var(--on-mut)" }} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name or email..."
+            style={{
+              background: "none",
+              border: "none",
+              outline: "none",
+              fontFamily: "Manrope, sans-serif",
+              fontSize: 13,
+              width: 220,
+            }}
+          />
+        </div>
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-gray-400">Loading...</p>
+        <div
+          style={{
+            padding: "48px 0",
+            textAlign: "center",
+            color: "var(--on-mut)",
+            fontFamily: "Manrope, sans-serif",
+          }}
+        >
+          Loading users...
+        </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                {["User", "Status", "Email verified", "Joined", "Role"].map((h) => (
-                  <th key={h} className="py-3 px-4 text-xs font-semibold text-gray-500 text-left">{h}</th>
+        <div className="panel">
+          <div className="panel-body flush">
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Last login</th>
+                  <th>Joined</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((u) => (
+                  <UserRow key={u.id} user={u} onAction={handleAction} />
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((user) => (<UserRow key={user.id} user={user} />))}
-            </tbody>
-          </table>
-          {users.length === 0 && (
-            <p className="text-sm text-gray-400 text-center py-12">No users yet.</p>
-          )}
+              </tbody>
+            </table>
+            {filtered.length === 0 && (
+              <div
+                style={{
+                  padding: "48px 20px",
+                  textAlign: "center",
+                  color: "var(--on-mut)",
+                  fontFamily: "Manrope, sans-serif",
+                }}
+              >
+                {search ? `No users matching "${search}"` : "No users yet."}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </AdminLayout>
