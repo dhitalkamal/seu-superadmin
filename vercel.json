@@ -1,11 +1,11 @@
 {
   "rewrites": [
-    { "source": "/iam/:path*", "destination": "https://seu-iam.onrender.com/:path*" },
-    { "source": "/event/:path*", "destination": "https://seu-event.onrender.com/:path*" },
-    { "source": "/org/:path*", "destination": "https://seu-management.onrender.com/:path*" },
-    { "source": "/participation/:path*", "destination": "https://seu-participation.onrender.com/:path*" },
-    { "source": "/payment/:path*", "destination": "https://seu-payment.onrender.com/:path*" },
-    { "source": "/notification/:path*", "destination": "https://seu-notification.onrender.com/:path*" },
-    { "source": "/intelligence/:path*", "destination": "https://seu-intelligence.onrender.com/:path*" }
+    { "source": "/iam/api/:path*", "destination": "https://seu-iam.onrender.com/api/:path*" },
+    { "source": "/event/api/:path*", "destination": "https://seu-event.onrender.com/api/:path*" },
+    { "source": "/org/api/:path*", "destination": "https://seu-management.onrender.com/api/:path*" },
+    { "source": "/participation/api/:path*", "destination": "https://seu-participation.onrender.com/api/:path*" },
+    { "source": "/payment/api/:path*", "destination": "https://seu-payment.onrender.com/api/:path*" },
+    { "source": "/notification/api/:path*", "destination": "https://seu-notification.onrender.com/api/:path*" },
+    { "source": "/intelligence/api/:path*", "destination": "https://seu-intelligence.onrender.com/api/:path*" }
   ]
 }
