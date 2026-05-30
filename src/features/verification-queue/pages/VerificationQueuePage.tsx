@@ -488,8 +488,8 @@ export default function VerificationQueuePage() {
           icon="schedule"
           color="lav"
           label="Avg review time"
-          value={formatAvgReviewTime(analytics?.avg_review_hours)}
-          trend={analytics?.avg_review_hours !== undefined ? "from analytics API" : "no data yet"}
+          value={formatAvgReviewTime(analytics?.orgs?.avg_review_hours)}
+          trend={analytics?.orgs?.avg_review_hours !== undefined ? "from analytics API" : "no data yet"}
           trendKind="steady"
         />
       </div>

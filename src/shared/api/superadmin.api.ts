@@ -204,12 +204,12 @@ export type PlatformAnalytics = {
     prev_30d: number;
     plan_breakdown: Record<string, number>;
     monthly_series: number[];
+    avg_review_hours?: number;
   };
   tickets: {
     open: number;
     escalated: number;
   };
-  avg_review_hours?: number;
 };
 
 // ===== Digest schedule types =====
@@ -359,7 +359,14 @@ export type ModerationCase = {
 };
 
 export type ModerationStats = {
+  total: number;
+  pending: number;
   pending_count: number;
+  under_review: number;
+  dismissed: number;
+  warned: number;
+  taken_down: number;
+  decided: number;
   decided_count: number;
   approval_rate: number;
   avg_resolution_hours: number;
