@@ -4,13 +4,6 @@ import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS, useToast } from "@/shared/components/v8";
 import superadminApi, { type ModerationCase } from "@/shared/api/superadmin.api";
 
-// policy decision tree is static - it describes rules, not data
-const aiTriage = [
-  ["Toxicity", "0.04", "low"],
-  ["Misleading", "0.72", "high"],
-  ["Off-policy", "0.51", "med"],
-  ["Spam", "0.08", "low"],
-];
 
 /** Severity pill for a moderation case. Derived from report count and status. */
 function sevFromCase(c: ModerationCase): "high" | "med" | "low" {
@@ -52,8 +45,8 @@ export default function ModerationPage() {
   // decided = all non-pending cases for the recent decisions table
   const decidedCases = cases.filter((c) => c.status !== "pending" && c.status !== "under_review");
 
-  const pendingCount = stats?.pending_count ?? pendingCases.length;
-  const decidedCount = stats?.decided_count ?? decidedCases.length;
+  const pendingCount = stats?.pending ?? stats?.pending_count ?? pendingCases.length;
+  const decidedCount = stats?.decided ?? stats?.decided_count ?? decidedCases.length;
   const approvalRate = stats?.approval_rate != null ? `${Math.round(stats.approval_rate)}%` : "--";
   const avgResolution =
     stats?.avg_resolution_hours != null ? `${stats.avg_resolution_hours.toFixed(1)}h` : "--";
@@ -237,62 +230,19 @@ export default function ModerationPage() {
                     </div>
 
                     <div style={{ borderLeft: "1px solid var(--outline)", paddingLeft: 18 }}>
-                      <div className="vq-section-l">AI triage</div>
-                      {aiTriage.map((ai, ci) => (
-                        <div
-                          key={ci}
-                          style={{
-                            padding: "6px 0",
-                            borderBottom: ci < 3 ? "1px solid var(--outline)" : undefined,
-                            fontSize: 11.5,
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              marginBottom: 3,
-                            }}
-                          >
-                            <span style={{ color: "var(--on-var)" }}>{ai[0]}</span>
-                            <span
-                              style={{
-                                fontFamily: "JetBrains Mono, monospace",
-                                fontWeight: 700,
-                                color:
-                                  ai[2] === "high"
-                                    ? "#b32a1f"
-                                    : ai[2] === "med"
-                                      ? "#92400e"
-                                      : "#166534",
-                              }}
-                            >
-                              {ai[1]}
-                            </span>
-                          </div>
-                          <div
-                            style={{
-                              height: 4,
-                              background: "var(--mid)",
-                              borderRadius: 999,
-                              overflow: "hidden",
-                            }}
-                          >
-                            <div
-                              style={{
-                                height: "100%",
-                                background:
-                                  ai[2] === "high"
-                                    ? "#e83151"
-                                    : ai[2] === "med"
-                                      ? "#dba13d"
-                                      : "#16a34a",
-                                width: `${parseFloat(ai[1]) * 100}%`,
-                              }}
-                            />
-                          </div>
+                      <div className="vq-section-l">Case details</div>
+                      <div style={{ fontSize: 12, color: "var(--on-var)", lineHeight: 1.6 }}>
+                        <div style={{ marginBottom: 6 }}>
+                          <span style={{ fontWeight: 700 }}>Type:</span> {c.content_type}
                         </div>
-                      ))}
+                        <div style={{ marginBottom: 6 }}>
+                          <span style={{ fontWeight: 700 }}>Reported:</span> {new Date(c.created_at).toLocaleDateString()}
+                        </div>
+                        <div>
+                          <span style={{ fontWeight: 700 }}>Case ID:</span>{" "}
+                          <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>{c.id.slice(0, 12)}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );

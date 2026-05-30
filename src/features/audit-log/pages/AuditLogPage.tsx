@@ -405,7 +405,13 @@ export default function AuditLogPage() {
           trend="approve/suspend/delete"
           trendKind={privileged > 0 ? "warn" : "steady"}
         />
-        <KPI icon="lock" color="mnt" label="Retention" value="7y" trend="immutable storage" />
+        <KPI
+          icon="event_note"
+          color="mnt"
+          label="Total events"
+          value={entries.length.toString()}
+          trend="all time"
+        />
       </div>
 
       <div className="panel">
@@ -478,11 +484,16 @@ export default function AuditLogPage() {
                       .map(([k, v]) => `${k}: ${v}`)
                       .join(", ") || "-";
                   const color = actionColor(entry.event_type);
+                  const isPrivileged =
+                    entry.event_type.includes("suspend") ||
+                    entry.event_type.includes("approve") ||
+                    entry.event_type.includes("reject") ||
+                    entry.event_type.includes("delete");
                   const ini = initials(entry.actor_name);
                   const ua = entry.user_agent ?? "internal";
                   const origin = entry.ip_address ?? "internal";
                   return (
-                    <tr key={entry.id}>
+                    <tr key={entry.id} style={isPrivileged ? { background: "rgba(232,49,81,0.04)" } : undefined}>
                       <td
                         style={{
                           fontFamily: "JetBrains Mono, monospace",

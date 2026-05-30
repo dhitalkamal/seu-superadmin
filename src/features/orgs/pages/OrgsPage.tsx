@@ -198,16 +198,17 @@ export default function OrgsPage() {
     }
   }
 
-  // filter by date range first, then derive status counts
+  // filter by date range, exclude pending_review (those go to verification queue)
   const cutoff = getRangeCutoff(range);
   const rangeFiltered = cutoff ? orgs.filter((o) => new Date(o.created_at) >= cutoff) : orgs;
+  const nonPending = rangeFiltered.filter((o) => o.status !== "pending_review");
 
   const pending = rangeFiltered.filter((o) => o.status === "pending_review");
   const active = rangeFiltered.filter((o) => o.status === "active");
 
-  // paginate the filtered list
+  // paginate - only non-pending orgs shown in this tab
   const { page, totalPages, paged, from, to, total, setPage, next, prev } = usePagination(
-    rangeFiltered,
+    nonPending,
     20
   );
 

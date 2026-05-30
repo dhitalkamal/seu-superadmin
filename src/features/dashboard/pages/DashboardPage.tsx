@@ -374,9 +374,13 @@ export default function DashboardPage() {
     queryKey: ["org-analytics"],
     queryFn: superadminApi.getAnalytics,
   });
+  const { data: paymentAnalytics } = useQuery({
+    queryKey: ["payment-analytics"],
+    queryFn: superadminApi.getPaymentAnalytics,
+  });
 
   const events = eventsPage?.results ?? [];
-  const priceMap = Object.fromEntries(PLAN_CATALOGUE.map((p) => [p.name, p.price]));
+  const priceMap = Object.fromEntries(PLAN_CATALOGUE.map((p) => [p.name.toLowerCase(), p.price]));
 
   // apply date range filter to screen data
   const cutoff = getRangeCutoff(range);
@@ -415,7 +419,6 @@ export default function DashboardPage() {
   const activeUsers = regularUsers.filter((u) => u.is_active).length;
   const verifiedUsers = regularUsers.filter((u) => u.is_email_verified).length;
   const publishedEvents = filteredEvents.filter((e) => e.status === "published").length;
-  const totalRegs = filteredEvents.reduce((s, e) => s + (e.registered_count ?? 0), 0);
   const loading = orgsLoading || usersLoading;
 
   // * map widget ids to their rendered JSX
@@ -449,12 +452,11 @@ export default function DashboardPage() {
               trend={`${events.length} total`}
             />
             <KPI
-              icon="how_to_reg"
+              icon="payments"
               color="mnt"
-              label="Registrations"
-              value={totalRegs.toLocaleString()}
-              trend="Across all events"
-              trendKind="steady"
+              label="Revenue"
+              value={paymentAnalytics ? fmtNpr(parseFloat(paymentAnalytics.total_revenue)) : "--"}
+              trend={paymentAnalytics ? `${paymentAnalytics.active_subscriptions} active subs` : ""}
             />
           </div>
         );

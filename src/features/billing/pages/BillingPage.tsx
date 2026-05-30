@@ -423,10 +423,10 @@ export default function BillingPage() {
       )}
 
       <div className="chart-grid-2">
-        {/* donut: revenue by source (tickets vs subscriptions) */}
+        {/* donut: plan distribution across orgs */}
         <div className="panel">
           <div className="panel-head">
-            <span className="panel-title">Revenue by source</span>
+            <span className="panel-title">Plan distribution</span>
           </div>
           <div className="panel-body">
             <div className="donut-wrap">
