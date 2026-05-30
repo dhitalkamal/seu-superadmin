@@ -13,6 +13,7 @@ export default function OrgVerifyPage() {
   const qc = useQueryClient();
   const { toast, toastEl } = useToast();
   const [reason, setReason] = useState("");
+  const [viewingDoc, setViewingDoc] = useState<{ url: string; name: string } | null>(null);
 
   const { data: org, isLoading } = useQuery({
     queryKey: ["org", id],
@@ -431,10 +432,8 @@ export default function OrgVerifyPage() {
                           {new Date(doc.uploaded_at).toLocaleDateString()}
                         </p>
                       </div>
-                      <a
-                        href={doc.file_url}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        onClick={() => setViewingDoc({ url: doc.file_url, name: doc.file_name })}
                         style={{
                           padding: "5px 12px",
                           borderRadius: 6,
@@ -444,11 +443,11 @@ export default function OrgVerifyPage() {
                           fontWeight: 600,
                           color: "var(--primary)",
                           fontFamily: "Manrope, sans-serif",
-                          textDecoration: "none",
+                          cursor: "pointer",
                         }}
                       >
                         View
-                      </a>
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -587,7 +586,6 @@ export default function OrgVerifyPage() {
                   label: "Registration certificate",
                   ok: orgDocs.some((d: OrgDocument) => d.doc_type === "registration_cert"),
                 },
-                { label: "Email verified status", ok: org.is_verified },
               ].map((check, i, arr) => (
                 <div
                   key={i}
@@ -762,6 +760,109 @@ export default function OrgVerifyPage() {
           </div>
         </div>
       </div>
+      {/* document viewer modal */}
+      {viewingDoc && (
+        <div
+          onClick={() => setViewingDoc(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 32,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface)",
+              borderRadius: 16,
+              width: "100%",
+              maxWidth: 900,
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              boxShadow: "0 16px 48px rgba(0,0,0,0.25)",
+            }}
+          >
+            {/* header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "14px 20px",
+                borderBottom: "1px solid var(--outline)",
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <MS n="description" size={18} style={{ color: "#3b82f6" }} />
+                <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 15 }}>
+                  {viewingDoc.name}
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <a
+                  href={viewingDoc.url}
+                  download={viewingDoc.name}
+                  style={{
+                    padding: "5px 12px",
+                    borderRadius: 6,
+                    border: "1px solid var(--mid)",
+                    background: "transparent",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "var(--on-var)",
+                    fontFamily: "Manrope, sans-serif",
+                    textDecoration: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <MS n="download" size={13} /> Download
+                </a>
+                <button
+                  onClick={() => setViewingDoc(null)}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    border: "1px solid var(--mid)",
+                    background: "transparent",
+                    cursor: "pointer",
+                    display: "grid",
+                    placeItems: "center",
+                  }}
+                >
+                  <MS n="close" size={16} style={{ color: "var(--on-mut)" }} />
+                </button>
+              </div>
+            </div>
+            {/* content */}
+            <div style={{ flex: 1, overflow: "auto", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f9fa", minHeight: 400 }}>
+              {viewingDoc.name.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i) ? (
+                <img
+                  src={viewingDoc.url}
+                  alt={viewingDoc.name}
+                  style={{ maxWidth: "100%", maxHeight: "80vh", objectFit: "contain" }}
+                />
+              ) : (
+                <iframe
+                  src={viewingDoc.url}
+                  title={viewingDoc.name}
+                  style={{ width: "100%", height: "80vh", border: "none" }}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

@@ -105,13 +105,45 @@ export type PaymentOrder = {
   id: string;
   user_id: string;
   event_id: string;
-  registration_id: string;
+  registration_id: string | null;
+  subtotal: string;
+  discount_amount: string;
+  platform_fee: string;
   total_amount: string;
   currency: string;
   status: string;
   gateway: string;
   created_at: string;
   completed_at?: string | null;
+};
+
+export type PaymentAnalytics = {
+  total_revenue: string;
+  revenue_30d: string;
+  ticket_revenue: string;
+  subscription_revenue: string;
+  subscription_mrr: string;
+  platform_fees_total: string;
+  platform_fees_30d: string;
+  total_orders: number;
+  completed_orders: number;
+  failed_orders: number;
+  gateway_breakdown: { gateway: string; count: number; total: string }[];
+  status_breakdown: { status: string; count: number }[];
+  active_subscriptions: number;
+  total_subscriptions: number;
+  refund_count: number;
+  refund_total: string;
+};
+
+export type RefundRecord = {
+  id: string;
+  order_id: string;
+  amount: string | null;
+  reason: string;
+  status: string;
+  gateway: string;
+  created_at: string;
 };
 
 // ===== Subscription types =====
@@ -556,6 +588,14 @@ const superadminApi = {
   // Payments: orders - uses admin endpoint for full cross-org visibility
   listOrders: () =>
     client.get<PagedOk<PaymentOrder>>(`${PAYMENT}/admin/orders/`).then((r) => r.data.data),
+
+  // Payment analytics
+  getPaymentAnalytics: () =>
+    client.get<ApiOk<PaymentAnalytics>>(`${PAYMENT}/admin/analytics/`).then((r) => r.data.data),
+
+  // Refunds
+  listRefunds: () =>
+    client.get<ApiOk<RefundRecord[]>>(`${PAYMENT}/admin/refunds/`).then((r) => r.data.data ?? []),
 
   // Disputes
   listAllDisputes: () =>

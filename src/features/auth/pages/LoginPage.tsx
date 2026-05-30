@@ -29,6 +29,7 @@ export default function LoginPage() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -237,26 +238,49 @@ export default function LoginPage() {
             >
               Password
             </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              style={{
-                width: "100%",
-                padding: "12px 14px",
-                border: "1px solid var(--outline)",
-                borderRadius: 10,
-                fontFamily: "Manrope, sans-serif",
-                fontSize: 14,
-                outline: "none",
-                background: "white",
-                boxSizing: "border-box",
-              }}
-              onFocus={(e) => (e.target.style.borderColor = "var(--primary)")}
-              onBlur={(e) => (e.target.style.borderColor = "var(--outline)")}
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                style={{
+                  width: "100%",
+                  padding: "12px 40px 12px 14px",
+                  border: "1px solid var(--outline)",
+                  borderRadius: 10,
+                  fontFamily: "Manrope, sans-serif",
+                  fontSize: 14,
+                  outline: "none",
+                  background: "white",
+                  boxSizing: "border-box",
+                }}
+                onFocus={(e) => (e.target.style.borderColor = "var(--primary)")}
+                onBlur={(e) => (e.target.style.borderColor = "var(--outline)")}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                style={{
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 4,
+                  display: "grid",
+                  placeItems: "center",
+                  color: "var(--on-mut)",
+                }}
+              >
+                <span className="ms" style={{ fontSize: 18 }}>
+                  {showPassword ? "visibility_off" : "visibility"}
+                </span>
+              </button>
+            </div>
           </div>
 
           <button
