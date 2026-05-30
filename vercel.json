@@ -6,6 +6,7 @@
     { "source": "/participation/api/:path*", "destination": "https://seu-participation.onrender.com/api/:path*" },
     { "source": "/payment/api/:path*", "destination": "https://seu-payment.onrender.com/api/:path*" },
     { "source": "/notification/api/:path*", "destination": "https://seu-notification.onrender.com/api/:path*" },
-    { "source": "/intelligence/api/:path*", "destination": "https://seu-intelligence.onrender.com/api/:path*" }
+    { "source": "/intelligence/api/:path*", "destination": "https://seu-intelligence.onrender.com/api/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
