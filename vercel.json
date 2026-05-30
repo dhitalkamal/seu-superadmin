@@ -1,0 +1,11 @@
+{
+  "rewrites": [
+    { "source": "/iam/:path*", "destination": "https://seu-iam.onrender.com/:path*" },
+    { "source": "/event/:path*", "destination": "https://seu-event.onrender.com/:path*" },
+    { "source": "/org/:path*", "destination": "https://seu-management.onrender.com/:path*" },
+    { "source": "/participation/:path*", "destination": "https://seu-participation.onrender.com/:path*" },
+    { "source": "/payment/:path*", "destination": "https://seu-payment.onrender.com/:path*" },
+    { "source": "/notification/:path*", "destination": "https://seu-notification.onrender.com/:path*" },
+    { "source": "/intelligence/:path*", "destination": "https://seu-intelligence.onrender.com/:path*" }
+  ]
+}
