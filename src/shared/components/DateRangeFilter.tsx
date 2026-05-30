@@ -55,7 +55,10 @@ export default function DateRangeFilter({ value, onChange }: Props) {
           {OPTIONS.map((o) => (
             <button
               key={o.value}
-              onClick={() => { onChange(o.value); setOpen(false); }}
+              onClick={() => {
+                onChange(o.value);
+                setOpen(false);
+              }}
               style={{
                 display: "block",
                 width: "100%",
@@ -70,8 +73,12 @@ export default function DateRangeFilter({ value, onChange }: Props) {
                 cursor: "pointer",
                 textAlign: "left",
               }}
-              onMouseEnter={(e) => { if (o.value !== value) e.currentTarget.style.background = "var(--low)"; }}
-              onMouseLeave={(e) => { if (o.value !== value) e.currentTarget.style.background = "transparent"; }}
+              onMouseEnter={(e) => {
+                if (o.value !== value) e.currentTarget.style.background = "var(--low)";
+              }}
+              onMouseLeave={(e) => {
+                if (o.value !== value) e.currentTarget.style.background = "transparent";
+              }}
             >
               {o.label}
             </button>
@@ -86,11 +93,16 @@ export default function DateRangeFilter({ value, onChange }: Props) {
 export function getRangeCutoff(range: Range): Date | null {
   const now = new Date();
   switch (range) {
-    case "7d": return new Date(now.getTime() - 7 * 86400000);
-    case "30d": return new Date(now.getTime() - 30 * 86400000);
-    case "90d": return new Date(now.getTime() - 90 * 86400000);
-    case "12mo": return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-    case "all": return null;
+    case "7d":
+      return new Date(now.getTime() - 7 * 86400000);
+    case "30d":
+      return new Date(now.getTime() - 30 * 86400000);
+    case "90d":
+      return new Date(now.getTime() - 90 * 86400000);
+    case "12mo":
+      return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+    case "all":
+      return null;
   }
 }
 

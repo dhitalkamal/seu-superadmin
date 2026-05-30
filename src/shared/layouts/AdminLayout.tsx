@@ -10,7 +10,7 @@ import UserAvatar from "@/shared/components/UserAvatar";
 type NavItem = { to: string; icon: string; label: string; badge?: string | number };
 type NavSection = { section: string; items: NavItem[] };
 
-function buildNav(orgCount: number, pendingCount: number, userCount: number): NavSection[] {
+function buildNav(orgCount: number, pendingCount: number, userCount: number, openTicketCount: number): NavSection[] {
   return [
     {
       section: "Platform",
@@ -35,7 +35,7 @@ function buildNav(orgCount: number, pendingCount: number, userCount: number): Na
           badge: userCount > 999 ? `${(userCount / 1000).toFixed(1)}k` : userCount || undefined,
         },
         { to: "/billing", icon: "attach_money", label: "Billing & Revenue" },
-        { to: "/support", icon: "support_agent", label: "Support Tickets" },
+        { to: "/support", icon: "support_agent", label: "Support Tickets", badge: openTicketCount || undefined },
       ],
     },
     {
@@ -83,9 +83,11 @@ export default function AdminLayout({ children, title, subtitle, actions, crumbs
 
   const { data: orgs = [] } = useQuery({ queryKey: ["orgs"], queryFn: superadminApi.listOrgs });
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: superadminApi.listUsers });
+  const { data: tickets = [] } = useQuery({ queryKey: ["tickets"], queryFn: superadminApi.listTickets });
   const pendingCount = orgs.filter((o) => o.status === "pending_review").length;
   const regularUserCount = users.filter((u) => !u.is_superuser).length;
-  const nav = buildNav(orgs.length, pendingCount, regularUserCount);
+  const openTicketCount = tickets.filter((t) => t.status === "open" || t.status === "in_progress" || t.status === "escalated").length;
+  const nav = buildNav(orgs.length, pendingCount, regularUserCount, openTicketCount);
 
   return (
     <div className="flex min-h-screen" style={{ background: "var(--bg)" }}>

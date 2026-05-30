@@ -8,7 +8,7 @@ import { exportCSV, exportPDF } from "@/shared/lib/export";
 import { usePagination } from "@/shared/lib/usePagination";
 import Pagination from "@/shared/components/Pagination";
 
-/** plan-name to colour for the donut + legend */
+/** plan-name to color for the donut + legend */
 const PLAN_COLORS: Record<string, string> = {
   enterprise: "#050a26",
   pro: "#e83151",

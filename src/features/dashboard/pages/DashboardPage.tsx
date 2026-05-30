@@ -380,15 +380,9 @@ export default function DashboardPage() {
 
   // apply date range filter to screen data
   const cutoff = getRangeCutoff(range);
-  const filteredOrgs = cutoff
-    ? orgs.filter((o) => new Date(o.created_at) >= cutoff)
-    : orgs;
-  const filteredUsers = cutoff
-    ? users.filter((u) => new Date(u.date_joined) >= cutoff)
-    : users;
-  const filteredEvents = cutoff
-    ? events.filter((e) => new Date(e.created_at) >= cutoff)
-    : events;
+  const filteredOrgs = cutoff ? orgs.filter((o) => new Date(o.created_at) >= cutoff) : orgs;
+  const filteredUsers = cutoff ? users.filter((u) => new Date(u.date_joined) >= cutoff) : users;
+  const filteredEvents = cutoff ? events.filter((e) => new Date(e.created_at) >= cutoff) : events;
 
   const totalMrr = filteredOrgs.reduce((sum, o) => sum + (priceMap[o.plan] ?? 0), 0);
 
@@ -501,7 +495,8 @@ export default function DashboardPage() {
               </div>
               <h4>Platform Status</h4>
               <p>
-                {filteredOrgs.length} workspaces, {regularUsers.length} users, {filteredEvents.length} events.
+                {filteredOrgs.length} workspaces, {regularUsers.length} users,{" "}
+                {filteredEvents.length} events.
                 {pending > 0 ? ` ${pending} orgs awaiting review.` : " All orgs reviewed."}
               </p>
               <div className="depth-status">

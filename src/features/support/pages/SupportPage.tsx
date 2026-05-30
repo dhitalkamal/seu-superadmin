@@ -175,30 +175,15 @@ export default function SupportPage() {
   const { toastEl, toast } = useToast();
   const qc = useQueryClient();
 
-  // * create ticket form state
-  const [showCreate, setShowCreate] = useState(false);
-  const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState("");
-  const [priority, setPriority] = useState<"low" | "med" | "high" | "critical">("med");
   const [showFilter, setShowFilter] = useState(false);
-  const [ticketFilter, setTicketFilter] = useState<TicketFilter>({ status: "all", priority: "all" });
+  const [ticketFilter, setTicketFilter] = useState<TicketFilter>({
+    status: "all",
+    priority: "all",
+  });
 
   const { data: tickets = [], isLoading } = useQuery({
     queryKey: ["tickets"],
     queryFn: superadminApi.listTickets,
-  });
-
-  // * create ticket mutation - resets form on success
-  const createMutation = useMutation({
-    mutationFn: () => superadminApi.createTicket({ subject, message, priority }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tickets"] });
-      toast("Ticket created");
-      setShowCreate(false);
-      setSubject("");
-      setMessage("");
-      setPriority("med");
-    },
   });
 
   const updateMutation = useMutation({
@@ -253,10 +238,6 @@ export default function SupportPage() {
         sub="Organization requests, bug reports, and escalations."
         actions={
           <>
-            <button className="btn-sm" onClick={() => setShowCreate((v) => !v)}>
-              <MS n="add" size={13} />
-              New ticket
-            </button>
             <div style={{ position: "relative" }}>
               <button
                 className="btn-sm"
@@ -310,88 +291,6 @@ export default function SupportPage() {
         />
       </div>
 
-      {/* create ticket form */}
-      {showCreate && (
-        <div className="panel">
-          <div className="panel-head">
-            <span className="panel-title">Create ticket</span>
-          </div>
-          <div className="panel-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div>
-              <label
-                htmlFor="ticket-subject"
-                style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}
-              >
-                Subject
-              </label>
-              <input
-                id="ticket-subject"
-                type="text"
-                className="input"
-                placeholder="Brief summary of the issue"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="ticket-message"
-                style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}
-              >
-                Message
-              </label>
-              <textarea
-                id="ticket-message"
-                className="input"
-                rows={3}
-                placeholder="Describe the issue in detail"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="ticket-priority"
-                style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}
-              >
-                Priority
-              </label>
-              <select
-                id="ticket-priority"
-                className="input"
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as "low" | "med" | "high" | "critical")}
-              >
-                <option value="low">Low</option>
-                <option value="med">Med</option>
-                <option value="high">High</option>
-                <option value="critical">Critical</option>
-              </select>
-            </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button
-                className="btn-sm"
-                onClick={() => {
-                  setShowCreate(false);
-                  setSubject("");
-                  setMessage("");
-                  setPriority("med");
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn-sm"
-                disabled={!subject.trim() || !message.trim() || createMutation.isPending}
-                onClick={() => createMutation.mutate()}
-              >
-                {createMutation.isPending ? "Creating..." : "Submit ticket"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="panel">
         <div className="panel-head">
           <span className="panel-title">All tickets</span>
@@ -402,7 +301,9 @@ export default function SupportPage() {
               color: "var(--on-mut)",
             }}
           >
-            {hasActiveFilter ? `${filteredTickets.length} of ${tickets.length}` : `${tickets.length} total`}
+            {hasActiveFilter
+              ? `${filteredTickets.length} of ${tickets.length}`
+              : `${tickets.length} total`}
           </span>
         </div>
         <div className="panel-body flush">

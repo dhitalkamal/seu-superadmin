@@ -334,7 +334,10 @@ export default function VerificationQueuePage() {
   const qc = useQueryClient();
   const { toast, toastEl } = useToast();
   const [showFilter, setShowFilter] = useState(false);
-  const [queueFilter, setQueueFilter] = useState<QueueFilter>({ status: "pending_review", orgType: "all" });
+  const [queueFilter, setQueueFilter] = useState<QueueFilter>({
+    status: "pending_review",
+    orgType: "all",
+  });
   const filterRef = useRef<HTMLDivElement>(null);
 
   const { data: orgs = [], isLoading } = useQuery({
@@ -376,8 +379,7 @@ export default function VerificationQueuePage() {
 
   // apply client-side filter
   const filteredQueue = orgs.filter((o) => {
-    const matchStatus =
-      queueFilter.status === "all" ? true : o.status === queueFilter.status;
+    const matchStatus = queueFilter.status === "all" ? true : o.status === queueFilter.status;
     const matchType =
       queueFilter.orgType === "all" ? true : (o.org_type ?? "company") === queueFilter.orgType;
     return matchStatus && matchType;
@@ -426,7 +428,12 @@ export default function VerificationQueuePage() {
               <button
                 className="btn-sm"
                 onClick={() => setShowFilter((v) => !v)}
-                style={{ fontWeight: queueFilter.status !== "pending_review" || queueFilter.orgType !== "all" ? 700 : undefined }}
+                style={{
+                  fontWeight:
+                    queueFilter.status !== "pending_review" || queueFilter.orgType !== "all"
+                      ? 700
+                      : undefined,
+                }}
               >
                 <MS n="filter_alt" size={13} />
                 Filter{queueFilter.orgType !== "all" ? ` · ${queueFilter.orgType}` : ""}
@@ -434,7 +441,9 @@ export default function VerificationQueuePage() {
               {showFilter && (
                 <FilterDropdown
                   filter={queueFilter}
-                  onChange={(f) => { setQueueFilter(f); }}
+                  onChange={(f) => {
+                    setQueueFilter(f);
+                  }}
                   onClose={() => setShowFilter(false)}
                 />
               )}

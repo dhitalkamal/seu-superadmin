@@ -2,88 +2,80 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS, useToast } from "@/shared/components/v8";
-import { SparkLine } from "@/shared/components/charts";
 import superadminApi from "@/shared/api/superadmin.api";
 import type { FeatureFlag } from "@/shared/api/superadmin.api";
+
+/** Available subscription plans for scoping flags. */
+const PLANS = ["free", "starter", "professional", "enterprise", "unlimited"];
 
 /** Create flag form state. */
 type CreateForm = {
   key: string;
-  label: string;
-  enabled: boolean;
-  rollout_percentage: number;
+  name: string;
+  description: string;
+  is_enabled: boolean;
+  enabled_plans: string[];
 };
 
-/** Risk label derived from rollout percentage for display. */
-function riskLevel(pct: number): string {
-  if (pct === 0) return "off";
-  if (pct < 25) return "high";
-  if (pct < 75) return "med";
-  return "low";
-}
-
-/** Feature flags wired to the real IAM API. Supports create, toggle, rollout, and delete. */
+/** Feature flags wired to the real IAM API. Supports create, toggle, scope, and delete. */
 export default function FeatureFlagsPage() {
   const { toast, toastEl } = useToast();
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<CreateForm>({
     key: "",
-    label: "",
-    enabled: true,
-    rollout_percentage: 0,
+    name: "",
+    description: "",
+    is_enabled: true,
+    enabled_plans: [],
   });
 
-  // fetch all flags from the real IAM backend
   const { data: flags = [], isLoading } = useQuery({
     queryKey: ["feature-flags"],
     queryFn: superadminApi.listFeatureFlags,
   });
 
-  // create a new flag
   const createMutation = useMutation({
     mutationFn: () =>
       superadminApi.createFeatureFlag({
         key: form.key,
-        label: form.label,
-        enabled: form.enabled,
-        rollout_percentage: form.rollout_percentage,
+        name: form.name,
+        description: form.description,
+        is_enabled: form.is_enabled,
+        enabled_plans: form.enabled_plans,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["feature-flags"] });
       toast("Flag created");
       setShowCreate(false);
-      setForm({ key: "", label: "", enabled: true, rollout_percentage: 0 });
+      setForm({ key: "", name: "", description: "", is_enabled: true, enabled_plans: [] });
     },
     onError: () => toast("Failed to create flag"),
   });
 
-  // toggle enabled state for a flag
   const toggleMutation = useMutation({
-    mutationFn: ({ key, enabled }: { key: string; enabled: boolean }) =>
-      superadminApi.updateFeatureFlag(key, { enabled }),
+    mutationFn: ({ key, is_enabled }: { key: string; is_enabled: boolean }) =>
+      superadminApi.updateFeatureFlag(key, { is_enabled }),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["feature-flags"] });
-      toast(`Flag ${vars.enabled ? "enabled" : "disabled"}`);
+      toast(`Flag ${vars.is_enabled ? "enabled" : "disabled"}`);
     },
     onError: () => toast("Update failed"),
   });
 
-  // update rollout percentage for a flag
-  const rolloutMutation = useMutation({
-    mutationFn: ({ key, pct }: { key: string; pct: number }) =>
-      superadminApi.updateFeatureFlag(key, { rollout_percentage: pct }),
-    onSuccess: (_data, vars) => {
+  const plansMutation = useMutation({
+    mutationFn: ({ key, enabled_plans }: { key: string; enabled_plans: string[] }) =>
+      superadminApi.updateFeatureFlag(key, { enabled_plans }),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["feature-flags"] });
-      toast(`Rollout set to ${vars.pct}%`);
+      toast("Plans updated");
     },
     onError: () => toast("Update failed"),
   });
 
-  // kill-switch: disable and zero out rollout
   const killMutation = useMutation({
     mutationFn: async (key: string) => {
-      await superadminApi.updateFeatureFlag(key, { enabled: false, rollout_percentage: 0 });
+      await superadminApi.updateFeatureFlag(key, { is_enabled: false, enabled_plans: [], enabled_org_ids: [] });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["feature-flags"] });
@@ -92,7 +84,6 @@ export default function FeatureFlagsPage() {
     onError: () => toast("Kill-switch failed"),
   });
 
-  // delete a flag permanently
   const deleteMutation = useMutation({
     mutationFn: (key: string) => superadminApi.deleteFeatureFlag(key),
     onSuccess: () => {
@@ -102,15 +93,22 @@ export default function FeatureFlagsPage() {
     onError: () => toast("Delete failed"),
   });
 
-  const activeCount = flags.filter((f) => f.enabled).length;
-  const inRollout = flags.filter((f) => f.enabled && f.rollout_percentage < 100).length;
+  const activeCount = flags.filter((f) => f.is_enabled).length;
+  const scopedCount = flags.filter((f) => f.enabled_plans.length > 0).length;
+
+  /** Toggle a plan in a flag's enabled_plans list. */
+  function togglePlan(flag: FeatureFlag, plan: string) {
+    const current = flag.enabled_plans ?? [];
+    const next = current.includes(plan) ? current.filter((p) => p !== plan) : [...current, plan];
+    plansMutation.mutate({ key: flag.key, enabled_plans: next });
+  }
 
   return (
     <AdminLayout crumbs={["Trust", "Feature Flags"]}>
       {toastEl}
       <PH
         title="Feature flags"
-        sub="Progressive rollout, kill-switches, and impact tracking. Changes apply within 60 seconds."
+        sub="Toggle platform features, scope to plans or organizations. Changes apply within 60 seconds."
         actions={
           <>
             <button className="btn-sm" onClick={() => setShowCreate((v) => !v)}>
@@ -123,9 +121,9 @@ export default function FeatureFlagsPage() {
 
       <div className="kpi-grid">
         <KPI icon="toggle_on" color="lav" label="Active flags" value={String(activeCount)} />
-        <KPI icon="trending_up" color="mnt" label="In rollout" value={String(inRollout)} trend="enabled, not 100%" />
+        <KPI icon="tune" color="mnt" label="Plan-scoped" value={String(scopedCount)} trend="limited to specific plans" />
         <KPI icon="flag" color="pch" label="Total flags" value={String(flags.length)} />
-        <KPI icon="undo" color="crl" label="Disabled" value={String(flags.length - activeCount)} />
+        <KPI icon="toggle_off" color="crl" label="Disabled" value={String(flags.length - activeCount)} />
       </div>
 
       {/* create flag form */}
@@ -138,69 +136,100 @@ export default function FeatureFlagsPage() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
                 <label htmlFor="ff-key" style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-                  Key (snake_case)
+                  Key (snake_case) <span style={{ color: "#ef4444" }}>*</span>
                 </label>
                 <input
                   id="ff-key"
                   type="text"
                   className="input"
-                  placeholder="e.g. new_reg_flow"
+                  required
+                  placeholder="e.g. enable_khalti_payments"
                   value={form.key}
                   onChange={(e) => setForm((f) => ({ ...f, key: e.target.value }))}
                 />
               </div>
               <div>
-                <label htmlFor="ff-label" style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-                  Label
+                <label htmlFor="ff-name" style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                  Name <span style={{ color: "#ef4444" }}>*</span>
                 </label>
                 <input
-                  id="ff-label"
+                  id="ff-name"
                   type="text"
                   className="input"
+                  required
                   placeholder="Human-readable name"
-                  value={form.label}
-                  onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 />
               </div>
+            </div>
+            <div>
+              <label htmlFor="ff-desc" style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                Description
+              </label>
+              <input
+                id="ff-desc"
+                type="text"
+                className="input"
+                placeholder="What does this flag control?"
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              />
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <label style={{ fontSize: 12, fontWeight: 600 }}>Enabled</label>
               <div
-                className={`toggle ${form.enabled ? "on" : "off"}`}
-                onClick={() => setForm((f) => ({ ...f, enabled: !f.enabled }))}
+                className={`toggle ${form.is_enabled ? "on" : "off"}`}
+                onClick={() => setForm((f) => ({ ...f, is_enabled: !f.is_enabled }))}
               />
-              <label htmlFor="ff-pct" style={{ fontSize: 12, fontWeight: 600, marginLeft: 16 }}>
-                Rollout %
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+                Enabled for plans
               </label>
-              <input
-                id="ff-pct"
-                type="number"
-                min={0}
-                max={100}
-                className="input"
-                style={{ width: 80 }}
-                value={form.rollout_percentage}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    rollout_percentage: Math.min(100, Math.max(0, Number(e.target.value))),
-                  }))
-                }
-              />
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {PLANS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className="btn-sm"
+                    style={{
+                      fontSize: 11,
+                      padding: "4px 10px",
+                      background: form.enabled_plans.includes(p) ? "#050a26" : "white",
+                      color: form.enabled_plans.includes(p) ? "white" : "var(--on-bg)",
+                      borderColor: form.enabled_plans.includes(p) ? "transparent" : undefined,
+                    }}
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        enabled_plans: f.enabled_plans.includes(p)
+                          ? f.enabled_plans.filter((x) => x !== p)
+                          : [...f.enabled_plans, p],
+                      }))
+                    }
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontSize: 11, color: "var(--on-mut)", marginTop: 4 }}>
+                Leave empty to enable for all plans.
+              </p>
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button
                 className="btn-sm"
                 onClick={() => {
                   setShowCreate(false);
-                  setForm({ key: "", label: "", enabled: true, rollout_percentage: 0 });
+                  setForm({ key: "", name: "", description: "", is_enabled: true, enabled_plans: [] });
                 }}
               >
                 Cancel
               </button>
               <button
                 className="btn-sm primary"
-                disabled={!form.key.trim() || !form.label.trim() || createMutation.isPending}
+                disabled={!form.key.trim() || !form.name.trim() || createMutation.isPending}
                 onClick={() => createMutation.mutate()}
               >
                 {createMutation.isPending ? "Creating..." : "Create flag"}
@@ -225,116 +254,103 @@ export default function FeatureFlagsPage() {
             No feature flags yet
           </p>
           <p style={{ fontSize: 13, color: "var(--on-mut)", fontFamily: "Manrope, sans-serif" }}>
-            Create your first flag using the button above.
+            Click &quot;New flag&quot; above to create your first feature flag.
           </p>
         </div>
       )}
 
       {/* flag cards */}
-      {flags.map((f: FeatureFlag) => {
-        const risk = riskLevel(f.rollout_percentage);
-        // placeholder sparkline based on rollout pct - no historical data in this model
-        const sparkData = Array.from({ length: 12 }, (_, i) =>
-          Math.min(f.rollout_percentage, (f.rollout_percentage / 11) * i)
-        );
-
-        return (
-          <div key={f.key} className="flag-c">
-            <div className="flag-c-h">
+      {flags.map((f: FeatureFlag) => (
+        <div key={f.key} className="panel" style={{ marginBottom: 14 }}>
+          <div className="panel-body" style={{ padding: "16px 20px" }}>
+            {/* header row: name + toggle */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
                   <span style={{ fontFamily: "Space Grotesk", fontWeight: 600, fontSize: 16, letterSpacing: "-0.025em" }}>
-                    {f.label}
+                    {f.name}
                   </span>
-                  {f.rollout_percentage > 0 && (
-                    <span className={`pill risk-${risk}`}>Risk · {risk}</span>
+                  <span className={`pill ${f.is_enabled ? "active" : "draft"}`}>
+                    {f.is_enabled ? "Enabled" : "Disabled"}
+                  </span>
+                  {f.enabled_plans.length > 0 && (
+                    <span className="pill pending">{f.enabled_plans.length} plan{f.enabled_plans.length > 1 ? "s" : ""}</span>
                   )}
                 </div>
                 <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 11, color: "var(--on-mut)" }}>
                   {f.key}
                 </span>
+                {f.description && (
+                  <p style={{ fontSize: 12.5, color: "var(--on-var)", marginTop: 4, lineHeight: 1.4 }}>
+                    {f.description}
+                  </p>
+                )}
               </div>
-              {/* toggle calls real API */}
               <div
-                className={`toggle ${f.enabled ? "on" : "off"}`}
+                className={`toggle ${f.is_enabled ? "on" : "off"}`}
                 onClick={() =>
                   !toggleMutation.isPending &&
-                  toggleMutation.mutate({ key: f.key, enabled: !f.enabled })
+                  toggleMutation.mutate({ key: f.key, is_enabled: !f.is_enabled })
                 }
               />
             </div>
 
-            <div className="flag-c-meta">
-              <div>
-                <div className="flag-c-meta-k">Status</div>
-                <div className="flag-c-meta-v">{f.enabled ? "Enabled" : "Disabled"}</div>
-              </div>
-              <div>
-                <div className="flag-c-meta-k">Rollout</div>
-                <div className="flag-c-meta-v">{f.rollout_percentage}%</div>
-              </div>
-              <div>
-                <div className="flag-c-meta-k">Trend · 12 steps</div>
-                <div style={{ marginTop: 2 }}>
-                  <SparkLine
-                    data={sparkData}
-                    height={28}
-                    color={risk === "high" ? "#e83151" : risk === "med" ? "#dba13d" : "#16a34a"}
-                  />
-                </div>
-              </div>
-              <div>
-                <div className="flag-c-meta-k">Key</div>
-                <div className="flag-c-meta-v" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>
-                  {f.key}
-                </div>
-              </div>
-            </div>
-
-            <div className="flag-c-roll">
-              <span
-                style={{
-                  fontSize: 10,
-                  color: "var(--on-mut)",
-                  fontFamily: "JetBrains Mono, monospace",
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  minWidth: 64,
-                }}
-              >
-                Rollout
+            {/* plan scope */}
+            <div style={{ paddingTop: 12, borderTop: "1px solid var(--outline)", marginBottom: 12 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--on-mut)", fontFamily: "JetBrains Mono, monospace" }}>
+                Plan scope
               </span>
-              <div className="flag-c-track">
-                <div className="flag-c-fill" style={{ width: `${f.rollout_percentage}%` }} />
-                <div className="flag-c-stops">
-                  {[0, 1, 2, 3, 4].map((s) => (
-                    <div key={s} className="flag-c-stop" />
-                  ))}
-                </div>
-              </div>
-              <span className="flag-c-pct">{f.rollout_percentage}%</span>
-            </div>
-
-            <div className="flag-c-foot">
-              <span style={{ fontSize: 12, color: "var(--on-mut)" }}>
-                Set rollout percentage:
-              </span>
+              <p style={{ fontSize: 11, color: "var(--on-mut)", marginBottom: 8 }}>
+                {f.enabled_plans.length === 0 ? "All plans (no restriction)" : `Restricted to: ${f.enabled_plans.join(", ")}`}
+              </p>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {[0, 25, 50, 75, 100].map((p) => (
+                {PLANS.map((p) => (
                   <button
                     key={p}
                     className="btn-sm"
                     style={{
                       padding: "4px 10px",
                       fontSize: 11,
-                      background: f.rollout_percentage === p ? "var(--low)" : "white",
+                      background: f.enabled_plans.includes(p) ? "#050a26" : "white",
+                      color: f.enabled_plans.includes(p) ? "white" : "var(--on-bg)",
+                      borderColor: f.enabled_plans.includes(p) ? "transparent" : undefined,
                     }}
-                    disabled={rolloutMutation.isPending}
-                    onClick={() => rolloutMutation.mutate({ key: f.key, pct: p })}
+                    disabled={plansMutation.isPending}
+                    onClick={() => togglePlan(f, p)}
                   >
-                    {p}%
+                    {p}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* org scope + meta */}
+            <div style={{ display: "flex", gap: 24, paddingTop: 12, borderTop: "1px solid var(--outline)", flexWrap: "wrap" }}>
+              <div>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--on-mut)", fontFamily: "JetBrains Mono, monospace" }}>
+                  Org scope
+                </span>
+                <p style={{ fontSize: 11.5, color: "var(--on-var)", marginTop: 2 }}>
+                  {f.enabled_org_ids.length === 0 ? "All organizations" : `${f.enabled_org_ids.length} org(s)`}
+                </p>
+              </div>
+              <div>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--on-mut)", fontFamily: "JetBrains Mono, monospace" }}>
+                  Created
+                </span>
+                <p style={{ fontSize: 11.5, color: "var(--on-var)", marginTop: 2, fontFamily: "JetBrains Mono, monospace" }}>
+                  {new Date(f.created_at).toLocaleDateString()}
+                </p>
+              </div>
+              <div>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--on-mut)", fontFamily: "JetBrains Mono, monospace" }}>
+                  Updated
+                </span>
+                <p style={{ fontSize: 11.5, color: "var(--on-var)", marginTop: 2, fontFamily: "JetBrains Mono, monospace" }}>
+                  {new Date(f.updated_at).toLocaleDateString()}
+                </p>
+              </div>
+              <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "flex-start" }}>
                 <button
                   className="btn-sm danger"
                   disabled={killMutation.isPending}
@@ -357,8 +373,8 @@ export default function FeatureFlagsPage() {
               </div>
             </div>
           </div>
-        );
-      })}
+        </div>
+      ))}
     </AdminLayout>
   );
 }

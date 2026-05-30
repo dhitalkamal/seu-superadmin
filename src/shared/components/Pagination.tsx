@@ -12,7 +12,16 @@ type Props = {
 };
 
 /** Table pagination bar with page numbers and prev/next. */
-export default function Pagination({ page, totalPages, from, to, total, onPrev, onNext, onPage }: Props) {
+export default function Pagination({
+  page,
+  totalPages,
+  from,
+  to,
+  total,
+  onPrev,
+  onNext,
+  onPage,
+}: Props) {
   if (totalPages <= 1) return null;
 
   // show at most 5 page buttons centered around current
@@ -32,7 +41,9 @@ export default function Pagination({ page, totalPages, from, to, total, onPrev, 
         marginTop: 8,
       }}
     >
-      <span style={{ fontSize: 12, color: "var(--on-mut)", fontFamily: "JetBrains Mono, monospace" }}>
+      <span
+        style={{ fontSize: 12, color: "var(--on-mut)", fontFamily: "JetBrains Mono, monospace" }}
+      >
         {from}-{to} of {total}
       </span>
       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>

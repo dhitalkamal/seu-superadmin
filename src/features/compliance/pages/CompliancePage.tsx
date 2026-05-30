@@ -110,40 +110,77 @@ function NewControlForm({ defaultCategory = "security", onClose }: NewControlFor
         New control
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Control name"
-          required
-          style={{
-            padding: "6px 10px",
-            borderRadius: 7,
-            border: "1px solid var(--outline)",
-            background: "var(--surface)",
-            color: "var(--on-bg)",
-            fontSize: 12.5,
-            fontFamily: "Manrope, sans-serif",
-          }}
-        />
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          style={{
-            padding: "6px 10px",
-            borderRadius: 7,
-            border: "1px solid var(--outline)",
-            background: "var(--surface)",
-            color: "var(--on-bg)",
-            fontSize: 12.5,
-            fontFamily: "Manrope, sans-serif",
-          }}
-        >
-          {KNOWN_CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {categoryLabel(c)}
-            </option>
-          ))}
-        </select>
+        <div>
+          <label
+            style={{
+              display: "block",
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase" as const,
+              color: "var(--on-mut)",
+              marginBottom: 4,
+              fontFamily: "'JetBrains Mono', monospace",
+            }}
+          >
+            Name <span style={{ color: "#ef4444" }}>*</span>
+          </label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Control name"
+            required
+            style={{
+              padding: "6px 10px",
+              borderRadius: 7,
+              border: "1px solid var(--outline)",
+              background: "var(--surface)",
+              color: "var(--on-bg)",
+              fontSize: 12.5,
+              fontFamily: "Manrope, sans-serif",
+              width: "100%",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+        <div>
+          <label
+            style={{
+              display: "block",
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase" as const,
+              color: "var(--on-mut)",
+              marginBottom: 4,
+              fontFamily: "'JetBrains Mono', monospace",
+            }}
+          >
+            Category <span style={{ color: "#ef4444" }}>*</span>
+          </label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            required
+            style={{
+              padding: "6px 10px",
+              borderRadius: 7,
+              border: "1px solid var(--outline)",
+              background: "var(--surface)",
+              color: "var(--on-bg)",
+              fontSize: 12.5,
+              fontFamily: "Manrope, sans-serif",
+              width: "100%",
+              boxSizing: "border-box",
+            }}
+          >
+            {KNOWN_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {categoryLabel(c)}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <input
         value={description}
@@ -159,24 +196,41 @@ function NewControlForm({ defaultCategory = "security", onClose }: NewControlFor
           fontFamily: "Manrope, sans-serif",
         }}
       />
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value as ComplianceStatus)}
-          style={{
-            padding: "6px 10px",
-            borderRadius: 7,
-            border: "1px solid var(--outline)",
-            background: "var(--surface)",
-            color: "var(--on-bg)",
-            fontSize: 12.5,
-            fontFamily: "Manrope, sans-serif",
-          }}
-        >
-          <option value="pass">Pass</option>
-          <option value="fail">Fail</option>
-          <option value="na">N/A</option>
-        </select>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+        <div>
+          <label
+            style={{
+              display: "block",
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase" as const,
+              color: "var(--on-mut)",
+              marginBottom: 4,
+              fontFamily: "'JetBrains Mono', monospace",
+            }}
+          >
+            Status <span style={{ color: "#ef4444" }}>*</span>
+          </label>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as ComplianceStatus)}
+            required
+            style={{
+              padding: "6px 10px",
+              borderRadius: 7,
+              border: "1px solid var(--outline)",
+              background: "var(--surface)",
+              color: "var(--on-bg)",
+              fontSize: 12.5,
+              fontFamily: "Manrope, sans-serif",
+            }}
+          >
+            <option value="pass">Pass</option>
+            <option value="fail">Fail</option>
+            <option value="na">N/A</option>
+          </select>
+        </div>
         <button
           type="submit"
           className="btn-sm primary"
@@ -250,7 +304,15 @@ function ControlRow({ ctrl }: { ctrl: ComplianceControl }) {
       >
         <MS n={icon} size={14} style={{ color }} />
       </button>
-      <span style={{ color: "var(--on-var)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <span
+        style={{
+          color: "var(--on-var)",
+          flex: 1,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
         {ctrl.name}
       </span>
     </div>
@@ -315,14 +377,14 @@ export default function CompliancePage() {
         sub="Org verification status, certifications, and compliance controls."
         actions={
           <>
-            <button className="btn-sm" onClick={() => toast("Compliance pack download coming soon")}>
+            <button
+              className="btn-sm"
+              onClick={() => toast("Compliance pack download coming soon")}
+            >
               <MS n="download" size={13} />
               Compliance pack
             </button>
-            <button
-              className="btn-sm primary"
-              onClick={() => setShowNewAudit((v) => !v)}
-            >
+            <button className="btn-sm primary" onClick={() => setShowNewAudit((v) => !v)}>
               <MS n="add" size={13} />
               New audit
             </button>
@@ -542,16 +604,11 @@ export default function CompliancePage() {
         <div className="panel-body">
           {/* new audit form - creates a control with category=audit */}
           {showNewAudit && (
-            <NewControlForm
-              defaultCategory="audit"
-              onClose={() => setShowNewAudit(false)}
-            />
+            <NewControlForm defaultCategory="audit" onClose={() => setShowNewAudit(false)} />
           )}
 
           {/* new control form */}
-          {showNewControl && (
-            <NewControlForm onClose={() => setShowNewControl(false)} />
-          )}
+          {showNewControl && <NewControlForm onClose={() => setShowNewControl(false)} />}
 
           {controlsLoading ? (
             <div

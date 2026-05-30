@@ -92,7 +92,7 @@ export type PlatformEvent = {
   end_date: string;
   capacity: number;
   registered_count: number;
-  organiser_id: string;
+  organizer_id: string;
   organization_id?: string;
   is_free: boolean;
   ticket_price?: string;
@@ -279,9 +279,13 @@ export type Dispute = {
 
 export type FeatureFlag = {
   key: string;
-  label: string;
-  enabled: boolean;
-  rollout_percentage: number;
+  name: string;
+  description: string;
+  is_enabled: boolean;
+  enabled_plans: string[];
+  enabled_org_ids: string[];
+  created_at: string;
+  updated_at: string;
 };
 
 // ===== Health types =====
@@ -307,12 +311,7 @@ export type HealthPing = {
 
 // ===== Moderation types =====
 
-export type ModerationStatus =
-  | "pending"
-  | "under_review"
-  | "dismissed"
-  | "warned"
-  | "taken_down";
+export type ModerationStatus = "pending" | "under_review" | "dismissed" | "warned" | "taken_down";
 
 export type ModerationCase = {
   id: string;
@@ -322,7 +321,7 @@ export type ModerationCase = {
   reason: string;
   status: ModerationStatus;
   reviewer_notes?: string;
-  organisation_id?: string;
+  organization_id?: string;
   created_at: string;
   updated_at: string;
 };
@@ -400,9 +399,11 @@ const superadminApi = {
 
   createFeatureFlag: async (payload: {
     key: string;
-    label: string;
-    enabled: boolean;
-    rollout_percentage?: number;
+    name: string;
+    description?: string;
+    is_enabled: boolean;
+    enabled_plans?: string[];
+    enabled_org_ids?: string[];
   }) => {
     const r = await client.post(`${IAM}/admin/feature-flags/`, payload);
     return r.data;
@@ -410,7 +411,7 @@ const superadminApi = {
 
   updateFeatureFlag: async (
     key: string,
-    payload: { enabled?: boolean; rollout_percentage?: number }
+    payload: { name?: string; is_enabled?: boolean; enabled_plans?: string[]; enabled_org_ids?: string[] }
   ) => {
     const r = await client.patch(`${IAM}/admin/feature-flags/${key}/`, payload);
     return r.data;
@@ -493,15 +494,23 @@ const superadminApi = {
   fetchRabbitMqHealth: () =>
     client
       .get<{ status: string }>("/infra/rabbitmq/api/health/checks/alarms")
-      .then((r) => ({ status: r.data.status === "ok" ? "healthy" : "unhealthy" as const }))
+      .then((r) => ({ status: r.data.status === "ok" ? "healthy" : ("unhealthy" as const) }))
       .catch(() => ({ status: "unreachable" as const })),
 
   // infra health: elasticsearch cluster health
   fetchElasticsearchHealth: () =>
     client
-      .get<{ status: string; cluster_name: string; number_of_nodes: number; active_shards: number }>("/infra/elasticsearch/_cluster/health")
+      .get<{
+        status: string;
+        cluster_name: string;
+        number_of_nodes: number;
+        active_shards: number;
+      }>("/infra/elasticsearch/_cluster/health")
       .then((r) => ({
-        status: (r.data.status === "green" || r.data.status === "yellow") ? "healthy" : "unhealthy" as const,
+        status:
+          r.data.status === "green" || r.data.status === "yellow"
+            ? "healthy"
+            : ("unhealthy" as const),
         cluster: r.data.status,
         nodes: r.data.number_of_nodes,
         shards: r.data.active_shards,
@@ -512,7 +521,7 @@ const superadminApi = {
   fetchMinioHealth: () =>
     client
       .get("/infra/minio/minio/health/live", { validateStatus: () => true })
-      .then((r) => ({ status: r.status === 200 ? "healthy" : "unhealthy" as const }))
+      .then((r) => ({ status: r.status === 200 ? "healthy" : ("unhealthy" as const) }))
       .catch(() => ({ status: "unreachable" as const })),
 
   // health ping history: 30-day stored data from intelligence service
@@ -619,7 +628,7 @@ const superadminApi = {
     content_id: string;
     content_title: string;
     reason: string;
-    organisation_id?: string;
+    organization_id?: string;
   }) => {
     const r = await client.post(`${MGMT}/moderation/cases/`, payload);
     return r.data;

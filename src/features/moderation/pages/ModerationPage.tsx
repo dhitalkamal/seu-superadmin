@@ -50,18 +50,13 @@ export default function ModerationPage() {
   // pending = cases that need a decision
   const pendingCases = cases.filter((c) => c.status === "pending" || c.status === "under_review");
   // decided = all non-pending cases for the recent decisions table
-  const decidedCases = cases.filter(
-    (c) => c.status !== "pending" && c.status !== "under_review"
-  );
+  const decidedCases = cases.filter((c) => c.status !== "pending" && c.status !== "under_review");
 
   const pendingCount = stats?.pending_count ?? pendingCases.length;
   const decidedCount = stats?.decided_count ?? decidedCases.length;
-  const approvalRate =
-    stats?.approval_rate != null ? `${Math.round(stats.approval_rate)}%` : "--";
+  const approvalRate = stats?.approval_rate != null ? `${Math.round(stats.approval_rate)}%` : "--";
   const avgResolution =
-    stats?.avg_resolution_hours != null
-      ? `${stats.avg_resolution_hours.toFixed(1)}h`
-      : "--";
+    stats?.avg_resolution_hours != null ? `${stats.avg_resolution_hours.toFixed(1)}h` : "--";
 
   return (
     <AdminLayout crumbs={["Trust", "Moderation"]}>
@@ -165,15 +160,14 @@ export default function ModerationPage() {
                         >
                           {c.content_title}
                         </span>
-                        <span className={`pill ${sev}`}>{sev.charAt(0).toUpperCase() + sev.slice(1)}</span>
+                        <span className={`pill ${sev}`}>
+                          {sev.charAt(0).toUpperCase() + sev.slice(1)}
+                        </span>
                         <span className="pill draft">{c.content_type}</span>
                       </div>
                       <div style={{ fontSize: 12, color: "var(--on-var)", marginBottom: 10 }}>
-                        {c.organisation_id
-                          ? `Org: ${c.organisation_id.slice(0, 8)}`
-                          : "No org"}{" "}
-                        · Case {c.id.slice(0, 8)} ·{" "}
-                        {new Date(c.created_at).toLocaleDateString()}
+                        {c.organization_id ? `Org: ${c.organization_id.slice(0, 8)}` : "No org"} ·
+                        Case {c.id.slice(0, 8)} · {new Date(c.created_at).toLocaleDateString()}
                       </div>
                       <div
                         style={{

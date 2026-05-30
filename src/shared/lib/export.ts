@@ -12,7 +12,12 @@ export function exportCSV(headers: string[], rows: string[][], filename: string)
 }
 
 /** Export data as a printable PDF using the browser's print dialog. */
-export function exportPDF(title: string, headers: string[], rows: string[][], _filename: string): void {
+export function exportPDF(
+  title: string,
+  headers: string[],
+  rows: string[][],
+  _filename: string
+): void {
   const win = window.open("", "_blank");
   if (!win) return;
 
@@ -32,7 +37,8 @@ export function exportPDF(title: string, headers: string[], rows: string[][], _f
 
   // header section
   const header = doc.createElement("div");
-  header.style.cssText = "display:flex;justify-content:space-between;align-items:baseline;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #121d3f";
+  header.style.cssText =
+    "display:flex;justify-content:space-between;align-items:baseline;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #121d3f";
   const headerLeft = doc.createElement("div");
   const h1 = doc.createElement("h1");
   h1.style.cssText = "margin:0;font-size:22px;font-weight:700;letter-spacing:-0.02em";
@@ -56,7 +62,8 @@ export function exportPDF(title: string, headers: string[], rows: string[][], _f
   const headRow = doc.createElement("tr");
   for (const h of headers) {
     const th = doc.createElement("th");
-    th.style.cssText = "padding:8px 10px;border-bottom:2px solid #121d3f;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#6b7280";
+    th.style.cssText =
+      "padding:8px 10px;border-bottom:2px solid #121d3f;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#6b7280";
     th.textContent = h;
     headRow.appendChild(th);
   }

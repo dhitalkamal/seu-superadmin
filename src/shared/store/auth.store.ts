@@ -18,7 +18,7 @@ migrateLegacyAuthStorage();
 
 type Role =
   | "attendee"
-  | "organiser"
+  | "organizer"
   | "super-admin"
   | "platform-mgr"
   | "compliance"

@@ -20,7 +20,7 @@ type Props = {
 };
 
 // * --- 8 illustrated character SVGs ------------------------------------------
-// Each is a self-contained SVG string rendered inside a coloured background.
+// Each is a self-contained SVG string rendered inside a colored background.
 
 const PALETTES = [
   { bg: "#1e3a5f", skin: "#f0c8a0", hair: "#2c1810", shirt: "#3b82f6", accent: "#60a5fa" },
@@ -184,7 +184,8 @@ export default function UserAvatar({ src, uid = "", size = 48, radius = 16, styl
   };
 
   const [imgFailed, setImgFailed] = useState(false);
-  const hasValidSrc = !imgFailed && typeof src === "string" && src.trim().length > 0 && src.startsWith("http");
+  const hasValidSrc =
+    !imgFailed && typeof src === "string" && src.trim().length > 0 && src.startsWith("http");
 
   if (hasValidSrc) {
     return (

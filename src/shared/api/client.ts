@@ -15,6 +15,7 @@ function getAuthBlob(): string | null {
 /** Axios instance pointed at the Nginx gateway. */
 const client = axios.create({
   baseURL: API_BASE,
+  adapter: "fetch",
 });
 
 // json by default, but let axios auto-detect for FormData uploads

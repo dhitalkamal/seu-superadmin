@@ -2,7 +2,10 @@ import { useMemo, useRef, useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS, useToast } from "@/shared/components/v8";
-import superadminApi, { type DigestSchedule, type DigestFrequency } from "@/shared/api/superadmin.api";
+import superadminApi, {
+  type DigestSchedule,
+  type DigestFrequency,
+} from "@/shared/api/superadmin.api";
 import { usePagination } from "@/shared/lib/usePagination";
 import { exportCSV, exportPDF } from "@/shared/lib/export";
 import Pagination from "@/shared/components/Pagination";
@@ -89,30 +92,28 @@ function DigestPanel({ onClose }: { onClose: () => void }) {
 
       {/* create form */}
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="recipient@example.com"
-          required
-          style={{
-            padding: "6px 10px",
-            borderRadius: 7,
-            border: "1px solid var(--outline)",
-            background: "var(--low)",
-            color: "var(--on-bg)",
-            fontSize: 12.5,
-            fontFamily: "Manrope, sans-serif",
-            width: "100%",
-            boxSizing: "border-box",
-          }}
-        />
-        <div style={{ display: "flex", gap: 6 }}>
-          <select
-            value={frequency}
-            onChange={(e) => setFrequency(e.target.value as DigestFrequency)}
+        <div>
+          <label
             style={{
-              flex: 1,
+              display: "block",
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase" as const,
+              color: "var(--on-mut)",
+              marginBottom: 4,
+              fontFamily: "'JetBrains Mono', monospace",
+            }}
+          >
+            Email <span style={{ color: "#ef4444" }}>*</span>
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="recipient@example.com"
+            required
+            style={{
               padding: "6px 10px",
               borderRadius: 7,
               border: "1px solid var(--outline)",
@@ -120,12 +121,47 @@ function DigestPanel({ onClose }: { onClose: () => void }) {
               color: "var(--on-bg)",
               fontSize: 12.5,
               fontFamily: "Manrope, sans-serif",
+              width: "100%",
+              boxSizing: "border-box",
             }}
-          >
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
+          />
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ flex: 1 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase" as const,
+                color: "var(--on-mut)",
+                marginBottom: 4,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
+            >
+              Frequency <span style={{ color: "#ef4444" }}>*</span>
+            </label>
+            <select
+              value={frequency}
+              onChange={(e) => setFrequency(e.target.value as DigestFrequency)}
+              required
+              style={{
+                width: "100%",
+                padding: "6px 10px",
+                borderRadius: 7,
+                border: "1px solid var(--outline)",
+                background: "var(--low)",
+                color: "var(--on-bg)",
+                fontSize: 12.5,
+                fontFamily: "Manrope, sans-serif",
+              }}
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
           <button
             type="submit"
             className="btn-sm primary"

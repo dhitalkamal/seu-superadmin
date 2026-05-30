@@ -1,19 +1,57 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
-import { PH, MS, useToast } from "@/shared/components/v8";
+import { PH, KPI, MS, useToast } from "@/shared/components/v8";
 import superadminApi from "@/shared/api/superadmin.api";
 import { exportCSV, exportPDF } from "@/shared/lib/export";
 
 type Mode = "broadcast" | "single";
-type NotificationType = "platform_announcement" | "maintenance" | "feature_update" | "admin_notification";
+type NotificationType =
+  | "platform_announcement"
+  | "maintenance"
+  | "feature_update"
+  | "admin_notification";
 
-const NOTIFICATION_TYPES: { value: NotificationType; label: string; icon: string; color: string }[] = [
+const NOTIFICATION_TYPES: {
+  value: NotificationType;
+  label: string;
+  icon: string;
+  color: string;
+}[] = [
   { value: "platform_announcement", label: "Announcement", icon: "campaign", color: "#121d3f" },
   { value: "maintenance", label: "Maintenance", icon: "build", color: "#dba13d" },
   { value: "feature_update", label: "Feature update", icon: "new_releases", color: "#16a34a" },
-  { value: "admin_notification", label: "Admin notice", icon: "admin_panel_settings", color: "#e83151" },
+  {
+    value: "admin_notification",
+    label: "Admin notice",
+    icon: "admin_panel_settings",
+    color: "#e83151",
+  },
 ];
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: "0.1em",
+  textTransform: "uppercase",
+  color: "var(--on-mut)",
+  marginBottom: 6,
+  fontFamily: "'JetBrains Mono', monospace",
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "10px 14px",
+  borderRadius: 10,
+  border: "1px solid var(--outline)",
+  background: "var(--low)",
+  color: "var(--on-bg)",
+  fontSize: 14,
+  outline: "none",
+  fontFamily: "'Manrope', sans-serif",
+  boxSizing: "border-box",
+};
 
 type SentRecord = {
   title: string;
@@ -26,28 +64,24 @@ type SentRecord = {
   status: "sent" | "failed";
 };
 
-/** Announcements page - broadcast to all users or notify a single user. */
 export default function AnnouncementsPage() {
   const { toast, toastEl } = useToast();
+  const [showModal, setShowModal] = useState(false);
   const [mode, setMode] = useState<Mode>("broadcast");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [channel, setChannel] = useState("in_app");
   const [notifType, setNotifType] = useState<NotificationType>("platform_announcement");
-  const [done, setDone] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const [sentHistory, setSentHistory] = useState<SentRecord[]>([]);
 
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: superadminApi.listUsers });
-
-  // load real send history from notification service on mount
   const { data: recentNotifs = [] } = useQuery({
     queryKey: ["recent-notifications"],
     queryFn: () => superadminApi.listRecentNotifications(20),
   });
 
-  // seed sentHistory from server notifications only once on first load
   useEffect(() => {
     if (recentNotifs.length === 0) return;
     setSentHistory((prev) => {
@@ -69,13 +103,12 @@ export default function AnnouncementsPage() {
     ? users.filter(
         (u) =>
           u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
-          `${u.first_name} ${u.last_name}`.toLowerCase().includes(userSearch.toLowerCase()),
+          `${u.first_name} ${u.last_name}`.toLowerCase().includes(userSearch.toLowerCase())
       )
     : [];
 
   const selectedUser = users.find((u) => u.id === selectedUserId);
 
-  /** Adds a record to the session history after send. */
   function recordSent(status: "sent" | "failed") {
     setSentHistory((prev) => [
       {
@@ -83,7 +116,8 @@ export default function AnnouncementsPage() {
         message: body,
         channel,
         type: notifType,
-        target: mode === "broadcast" ? `All users (${users.length})` : selectedUser?.email ?? "user",
+        target:
+          mode === "broadcast" ? `All users (${users.length})` : (selectedUser?.email ?? "user"),
         recipientCount: mode === "broadcast" ? users.length : 1,
         sentAt: new Date(),
         status,
@@ -103,12 +137,12 @@ export default function AnnouncementsPage() {
       }),
     onSuccess: () => {
       recordSent("sent");
-      setDone(true);
-      toast(`Sent to ${users.length} users via ${channel}`);
+      toast(`Sent to ${users.length} users`);
+      closeModal();
     },
     onError: () => {
       recordSent("failed");
-      toast("Failed to send announcement");
+      toast("Failed to send");
     },
   });
 
@@ -123,12 +157,12 @@ export default function AnnouncementsPage() {
       }),
     onSuccess: () => {
       recordSent("sent");
-      setDone(true);
-      toast(`Sent to ${selectedUser?.email ?? "user"} via ${channel}`);
+      toast(`Sent to ${selectedUser?.email ?? "user"}`);
+      closeModal();
     },
     onError: () => {
       recordSent("failed");
-      toast("Failed to send notification");
+      toast("Failed to send");
     },
   });
 
@@ -146,27 +180,21 @@ export default function AnnouncementsPage() {
     else singleMutation.mutate();
   }
 
-  function handleReset() {
-    setDone(false);
+  function closeModal() {
+    setShowModal(false);
     setTitle("");
     setBody("");
     setSelectedUserId("");
     setUserSearch("");
+    setNotifType("platform_announcement");
+    setChannel("in_app");
+    setMode("broadcast");
   }
 
-  function handleExportCSV() {
-    const headers = ["Title", "Type", "Channel", "Target", "Recipients", "Status", "Sent at"];
-    const rows = sentHistory.map((r) => [r.title, r.type, r.channel, r.target, String(r.recipientCount), r.status, r.sentAt.toLocaleString()]);
-    exportCSV(headers, rows, "announcements");
-  }
+  const sentCount = sentHistory.filter((r) => r.status === "sent").length;
+  const failedCount = sentHistory.filter((r) => r.status === "failed").length;
+  const totalRecipients = sentHistory.reduce((s, r) => s + r.recipientCount, 0);
 
-  function handleExportPDF() {
-    const headers = ["Title", "Type", "Channel", "Target", "Recipients", "Status", "Sent at"];
-    const rows = sentHistory.map((r) => [r.title, r.type, r.channel, r.target, String(r.recipientCount), r.status, r.sentAt.toLocaleString()]);
-    exportPDF("Announcements History", headers, rows, "announcements");
-  }
-
-  const successTarget = mode === "broadcast" ? `${users.length} users` : selectedUser?.email ?? "user";
   return (
     <AdminLayout crumbs={["Operations", "Announcements"]}>
       {toastEl}
@@ -177,268 +205,599 @@ export default function AnnouncementsPage() {
           <>
             {sentHistory.length > 0 && (
               <>
-                <button className="btn-sm" onClick={handleExportCSV}>
-                  <MS n="download" size={13} />
-                  Export CSV
+                <button
+                  className="btn-sm"
+                  onClick={() => {
+                    const h = [
+                      "Title",
+                      "Type",
+                      "Channel",
+                      "Target",
+                      "Recipients",
+                      "Status",
+                      "Sent at",
+                    ];
+                    const r = sentHistory.map((x) => [
+                      x.title,
+                      x.type,
+                      x.channel,
+                      x.target,
+                      String(x.recipientCount),
+                      x.status,
+                      x.sentAt.toLocaleString(),
+                    ]);
+                    exportCSV(h, r, "announcements");
+                  }}
+                >
+                  <MS n="download" size={13} /> Export CSV
                 </button>
-                <button className="btn-sm" onClick={handleExportPDF}>
-                  <MS n="picture_as_pdf" size={13} />
-                  Export PDF
+                <button
+                  className="btn-sm"
+                  onClick={() => {
+                    const h = [
+                      "Title",
+                      "Type",
+                      "Channel",
+                      "Target",
+                      "Recipients",
+                      "Status",
+                      "Sent at",
+                    ];
+                    const r = sentHistory.map((x) => [
+                      x.title,
+                      x.type,
+                      x.channel,
+                      x.target,
+                      String(x.recipientCount),
+                      x.status,
+                      x.sentAt.toLocaleString(),
+                    ]);
+                    exportPDF("Announcements History", h, r, "announcements");
+                  }}
+                >
+                  <MS n="picture_as_pdf" size={13} /> Export PDF
                 </button>
               </>
             )}
+            <button className="btn-sm primary" onClick={() => setShowModal(true)}>
+              <MS n="send" size={13} /> Compose
+            </button>
           </>
         }
       />
 
-      <div style={{ display: "flex", gap: 18 }}>
-        {/* left: compose form */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 18 }}>
-          <div className="panel">
-            <div className="panel-head">
-              <span className="panel-title">Compose</span>
-              <div style={{ display: "flex", gap: 0, borderRadius: 7, overflow: "hidden", border: "1px solid var(--outline)" }}>
-                <ModeTab active={mode === "broadcast"} onClick={() => setMode("broadcast")} icon="campaign" label="Broadcast" />
-                <ModeTab active={mode === "single"} onClick={() => setMode("single")} icon="person" label="Single user" />
-              </div>
-            </div>
-            <div className="panel-body">
-              {done ? (
-                <div style={{ textAlign: "center", padding: "40px 20px" }}>
-                  <div style={{ width: 60, height: 60, borderRadius: "50%", background: "#dcfce7", display: "grid", placeItems: "center", margin: "0 auto 16px" }}>
-                    <MS n="check_circle" size={36} style={{ color: "#166534" }} />
-                  </div>
-                  <p style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 600, fontSize: 20, letterSpacing: "-0.025em", marginBottom: 6 }}>
-                    {mode === "broadcast" ? "Announcement sent" : "Notification sent"}
-                  </p>
-                  <p style={{ color: "var(--on-var)", fontSize: 13, fontFamily: "Manrope, sans-serif" }}>
-                    Delivered to {successTarget} via {channel}.
-                  </p>
-                  <button className="btn-sm primary" style={{ marginTop: 14 }} onClick={handleReset}>
-                    Send another
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  {/* notification type selector */}
-                  <div className="field">
-                    <label className="field-lab">Type</label>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      {NOTIFICATION_TYPES.map((t) => (
-                        <button
-                          key={t.value}
-                          onClick={() => setNotifType(t.value)}
-                          style={{
-                            flex: 1,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                            padding: "8px 10px",
-                            borderRadius: 8,
-                            border: notifType === t.value ? `2px solid ${t.color}` : "1px solid var(--outline)",
-                            background: notifType === t.value ? `${t.color}08` : "transparent",
-                            cursor: "pointer",
-                            fontSize: 11,
-                            fontWeight: notifType === t.value ? 700 : 500,
-                            fontFamily: "Manrope, sans-serif",
-                            color: "var(--on-bg)",
-                          }}
-                        >
-                          <MS n={t.icon} size={14} style={{ color: t.color }} />
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+      <div className="kpi-grid">
+        <KPI icon="send" color="lav" label="Sent" value={String(sentCount)} />
+        <KPI icon="group" color="mnt" label="Total recipients" value={String(totalRecipients)} />
+        <KPI
+          icon="error"
+          color="crl"
+          label="Failed"
+          value={String(failedCount)}
+          trendKind={failedCount > 0 ? "warn" : "steady"}
+        />
+        <KPI icon="campaign" color="pch" label="History" value={String(sentHistory.length)} />
+      </div>
 
-                  {/* single user picker */}
-                  {mode === "single" && (
-                    <div className="field" style={{ position: "relative" }}>
-                      <label className="field-lab">Recipient</label>
-                      {selectedUser ? (
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--outline)", background: "var(--low)" }}>
-                          <MS n="person" size={16} style={{ color: "var(--on-mut)" }} />
-                          <span style={{ flex: 1, fontSize: 13, fontFamily: "Manrope, sans-serif" }}>
-                            <strong>{selectedUser.first_name} {selectedUser.last_name}</strong>
-                            <span style={{ color: "var(--on-mut)", marginLeft: 8 }}>{selectedUser.email}</span>
-                          </span>
-                          <button onClick={() => { setSelectedUserId(""); setUserSearch(""); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
-                            <MS n="close" size={14} style={{ color: "var(--on-mut)" }} />
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <input className="field-in" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} placeholder="Search by name or email..." />
-                          {userSearch.trim() && (
-                            <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, background: "var(--surface)", border: "1px solid var(--mid)", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", maxHeight: 200, overflowY: "auto", marginTop: 4 }}>
-                              {filteredUsers.length === 0 ? (
-                                <p style={{ padding: "12px 14px", fontSize: 12, color: "var(--on-mut)" }}>No users found</p>
-                              ) : (
-                                filteredUsers.slice(0, 8).map((u) => (
-                                  <button
-                                    key={u.id}
-                                    onClick={() => { setSelectedUserId(u.id); setUserSearch(""); }}
-                                    style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 14px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", borderBottom: "1px solid var(--outline)" }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--low)"; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                                  >
-                                    <MS n="person" size={15} style={{ color: "var(--on-mut)" }} />
-                                    <div>
-                                      <p style={{ fontSize: 13, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif" }}>{u.first_name} {u.last_name}</p>
-                                      <p style={{ fontSize: 11, color: "var(--on-mut)", fontFamily: "JetBrains Mono, monospace" }}>{u.email}</p>
-                                    </div>
-                                  </button>
-                                ))
-                              )}
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {/* broadcast recipient count */}
-                  {mode === "broadcast" && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, background: "var(--low)" }}>
-                      <MS n="group" size={15} style={{ color: "var(--on-mut)" }} />
-                      <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 11, color: "var(--on-mut)" }}>
-                        {users.length} recipients (all platform users)
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="field">
-                    <label className="field-lab">Title</label>
-                    <input className="field-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={mode === "broadcast" ? "Platform maintenance scheduled..." : "Action required on your account..."} />
-                  </div>
-                  <div className="field">
-                    <label className="field-lab">Message</label>
-                    <textarea className="field-in" rows={5} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Write your message..." style={{ lineHeight: 1.6, resize: "vertical" }} />
-                  </div>
-                  <div className="field">
-                    <label className="field-lab">Channel</label>
-                    <select className="field-in" value={channel} onChange={(e) => setChannel(e.target.value)}>
-                      <option value="in_app">In-app notification</option>
-                      <option value="email">Email</option>
-                      <option value="push">Push notification</option>
-                    </select>
-                  </div>
-
-                  <button
-                    className="btn-sm primary"
-                    onClick={handleSend}
-                    disabled={!canSend() || isPending}
-                    style={{ opacity: !canSend() ? 0.4 : 1, cursor: !canSend() ? "not-allowed" : "pointer", justifyContent: "center" }}
-                  >
-                    <MS n={mode === "broadcast" ? "rocket_launch" : "send"} size={13} />
-                    {isPending ? "Sending..." : mode === "broadcast" ? `Send to ${users.length} users` : "Send notification"}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+      {/* sent history table */}
+      <div className="panel">
+        <div className="panel-head">
+          <span className="panel-title">Send history</span>
+          <span
+            style={{
+              fontFamily: "JetBrains Mono, monospace",
+              fontSize: 10.5,
+              color: "var(--on-mut)",
+            }}
+          >
+            {sentHistory.length} entries
+          </span>
         </div>
-
-        {/* right: sent history sidebar */}
-        <div style={{ width: 360, flexShrink: 0 }}>
-          <div className="panel">
-            <div className="panel-head">
-              <span className="panel-title">Sent this session</span>
-              <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 10.5, color: "var(--on-mut)" }}>
-                {sentHistory.length} sent
-              </span>
+        <div className="panel-body flush">
+          {sentHistory.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "48px 20px" }}>
+              <MS
+                n="outgoing_mail"
+                size={32}
+                style={{ display: "block", margin: "0 auto 12px", opacity: 0.2 }}
+              />
+              <p
+                style={{
+                  fontFamily: "Space Grotesk, sans-serif",
+                  fontWeight: 600,
+                  fontSize: 16,
+                  marginBottom: 6,
+                }}
+              >
+                No announcements sent yet
+              </p>
+              <p
+                style={{
+                  fontSize: 13,
+                  color: "var(--on-mut)",
+                  fontFamily: "Manrope, sans-serif",
+                  marginBottom: 16,
+                }}
+              >
+                Compose and send your first announcement to platform users.
+              </p>
+              <button className="btn-sm primary" onClick={() => setShowModal(true)}>
+                <MS n="send" size={13} /> Compose announcement
+              </button>
             </div>
-            <div className="panel-body" style={{ padding: 0, maxHeight: 600, overflowY: "auto" }}>
-              {sentHistory.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "36px 20px", color: "var(--on-mut)", fontSize: 13 }}>
-                  <MS n="outgoing_mail" size={28} style={{ display: "block", margin: "0 auto 8px", opacity: 0.3 }} />
-                  Sent announcements will appear here.
-                </div>
-              ) : (
-                sentHistory.map((r, i) => {
+          ) : (
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Type</th>
+                  <th>Channel</th>
+                  <th>Target</th>
+                  <th>Status</th>
+                  <th>Sent</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sentHistory.map((r, i) => {
                   const tInfo = NOTIFICATION_TYPES.find((t) => t.value === r.type);
                   return (
-                    <div
-                      key={i}
+                    <tr key={i}>
+                      <td style={{ fontWeight: 700 }}>{r.title}</td>
+                      <td>
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 5,
+                            fontSize: 12,
+                          }}
+                        >
+                          <MS n={tInfo?.icon ?? "info"} size={14} style={{ color: tInfo?.color }} />
+                          {tInfo?.label ?? r.type}
+                        </span>
+                      </td>
+                      <td
+                        style={{
+                          fontFamily: "JetBrains Mono, monospace",
+                          fontSize: 11,
+                          color: "var(--on-mut)",
+                        }}
+                      >
+                        {r.channel}
+                      </td>
+                      <td style={{ fontSize: 12, color: "var(--on-var)" }}>{r.target}</td>
+                      <td>
+                        <span
+                          style={{
+                            padding: "2px 10px",
+                            borderRadius: 20,
+                            fontSize: 11.5,
+                            fontWeight: 700,
+                            background: r.status === "sent" ? "#dcfce7" : "#fee2e2",
+                            color: r.status === "sent" ? "#166534" : "#991b1b",
+                          }}
+                        >
+                          {r.status}
+                        </span>
+                      </td>
+                      <td
+                        style={{
+                          fontFamily: "JetBrains Mono, monospace",
+                          fontSize: 11,
+                          color: "var(--on-mut)",
+                        }}
+                      >
+                        {r.sentAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* compose modal */}
+      {showModal && (
+        <div
+          onClick={closeModal}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface)",
+              borderRadius: 20,
+              width: "100%",
+              maxWidth: 540,
+              boxShadow: "0 16px 48px rgba(0,0,0,0.15)",
+              overflow: "hidden",
+            }}
+          >
+            {/* header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "20px 24px 16px",
+                borderBottom: "1px solid var(--outline)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 9,
+                    background: "rgba(5,10,38,0.06)",
+                    display: "grid",
+                    placeItems: "center",
+                  }}
+                >
+                  <MS n="campaign" size={18} style={{ color: "var(--on-bg)" }} />
+                </div>
+                <div>
+                  <h3
+                    style={{
+                      fontFamily: "Space Grotesk, sans-serif",
+                      fontWeight: 700,
+                      fontSize: 17,
+                      letterSpacing: "-0.02em",
+                      margin: 0,
+                    }}
+                  >
+                    Compose {mode === "broadcast" ? "broadcast" : "notification"}
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: "var(--on-mut)",
+                      fontFamily: "Manrope, sans-serif",
+                      margin: 0,
+                      marginTop: 2,
+                    }}
+                  >
+                    {mode === "broadcast"
+                      ? `Send to all ${users.length} platform users.`
+                      : "Send to a specific user."}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={closeModal}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  border: "1px solid var(--mid)",
+                  background: "transparent",
+                  cursor: "pointer",
+                  display: "grid",
+                  placeItems: "center",
+                }}
+              >
+                <MS n="close" size={16} style={{ color: "var(--on-mut)" }} />
+              </button>
+            </div>
+
+            {/* body */}
+            <div
+              style={{
+                padding: "20px 24px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 16,
+                maxHeight: "60vh",
+                overflowY: "auto",
+              }}
+            >
+              {/* mode toggle */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: 0,
+                  borderRadius: 8,
+                  overflow: "hidden",
+                  border: "1px solid var(--outline)",
+                }}
+              >
+                {(["broadcast", "single"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setMode(m)}
+                    style={{
+                      flex: 1,
+                      padding: "9px 0",
+                      fontSize: 12.5,
+                      fontWeight: mode === m ? 700 : 500,
+                      fontFamily: "Manrope, sans-serif",
+                      border: "none",
+                      cursor: "pointer",
+                      background: mode === m ? "#050a26" : "var(--surface)",
+                      color: mode === m ? "white" : "var(--on-var)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <MS n={m === "broadcast" ? "campaign" : "person"} size={14} />
+                    {m === "broadcast" ? "Broadcast" : "Single user"}
+                  </button>
+                ))}
+              </div>
+
+              {/* type selector */}
+              <div>
+                <label style={labelStyle}>Type</label>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+                  {NOTIFICATION_TYPES.map((t) => (
+                    <button
+                      key={t.value}
+                      onClick={() => setNotifType(t.value)}
                       style={{
                         display: "flex",
-                        gap: 12,
-                        padding: "14px 16px",
-                        borderBottom: i < sentHistory.length - 1 ? "1px solid var(--outline)" : undefined,
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border:
+                          notifType === t.value
+                            ? `2px solid ${t.color}`
+                            : "1px solid var(--outline)",
+                        background: notifType === t.value ? `${t.color}08` : "transparent",
+                        cursor: "pointer",
+                        fontSize: 12,
+                        fontWeight: notifType === t.value ? 700 : 500,
+                        fontFamily: "Manrope, sans-serif",
+                        color: "var(--on-bg)",
                       }}
                     >
-                      <div style={{ width: 3, borderRadius: 2, background: tInfo?.color ?? "#9ca3af", flexShrink: 0 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
-                          <p style={{ fontWeight: 700, fontSize: 13, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.02em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {r.title}
-                          </p>
-                          <span
-                            style={{
-                              flexShrink: 0,
-                              fontFamily: "JetBrains Mono, monospace",
-                              fontSize: 9,
-                              padding: "2px 6px",
-                              borderRadius: 4,
-                              background: r.status === "sent" ? "#dcfce7" : "#fee2e2",
-                              color: r.status === "sent" ? "#166534" : "#991b1b",
-                              fontWeight: 700,
-                            }}
-                          >
-                            {r.status}
-                          </span>
-                        </div>
-                        <p style={{ fontSize: 11.5, color: "var(--on-var)", lineHeight: 1.5, fontFamily: "Manrope, sans-serif", marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {r.message}
-                        </p>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                          <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 9.5, padding: "2px 7px", borderRadius: 5, background: "var(--low)", color: "var(--on-mut)" }}>
-                            {tInfo?.label ?? r.type}
-                          </span>
-                          <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 9.5, padding: "2px 7px", borderRadius: 5, background: "var(--low)", color: "var(--on-mut)" }}>
-                            {r.channel}
-                          </span>
-                          <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 9.5, color: "var(--on-mut)" }}>
-                            {r.recipientCount} recipients
-                          </span>
-                          <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 9.5, color: "var(--on-mut)", marginLeft: "auto" }}>
-                            {r.sentAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                        </div>
-                      </div>
+                      <MS n={t.icon} size={14} style={{ color: t.color }} /> {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* single user picker */}
+              {mode === "single" && (
+                <div style={{ position: "relative" }}>
+                  <label style={labelStyle}>
+                    Recipient <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
+                  {selectedUser ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid var(--outline)",
+                        background: "var(--low)",
+                      }}
+                    >
+                      <MS n="person" size={16} style={{ color: "var(--on-mut)" }} />
+                      <span style={{ flex: 1, fontSize: 13, fontFamily: "Manrope, sans-serif" }}>
+                        <strong>
+                          {selectedUser.first_name} {selectedUser.last_name}
+                        </strong>
+                        <span style={{ color: "var(--on-mut)", marginLeft: 8 }}>
+                          {selectedUser.email}
+                        </span>
+                      </span>
+                      <button
+                        onClick={() => {
+                          setSelectedUserId("");
+                          setUserSearch("");
+                        }}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: 2,
+                        }}
+                      >
+                        <MS n="close" size={14} style={{ color: "var(--on-mut)" }} />
+                      </button>
                     </div>
-                  );
-                })
+                  ) : (
+                    <>
+                      <input
+                        value={userSearch}
+                        onChange={(e) => setUserSearch(e.target.value)}
+                        placeholder="Search by name or email..."
+                        style={inputStyle}
+                      />
+                      {userSearch.trim() && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "100%",
+                            left: 0,
+                            right: 0,
+                            zIndex: 20,
+                            background: "var(--surface)",
+                            border: "1px solid var(--mid)",
+                            borderRadius: 10,
+                            boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
+                            maxHeight: 180,
+                            overflowY: "auto",
+                            marginTop: 4,
+                          }}
+                        >
+                          {filteredUsers.length === 0 ? (
+                            <p
+                              style={{ padding: "12px 14px", fontSize: 12, color: "var(--on-mut)" }}
+                            >
+                              No users found
+                            </p>
+                          ) : (
+                            filteredUsers.slice(0, 6).map((u) => (
+                              <button
+                                key={u.id}
+                                onClick={() => {
+                                  setSelectedUserId(u.id);
+                                  setUserSearch("");
+                                }}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 10,
+                                  width: "100%",
+                                  padding: "9px 14px",
+                                  border: "none",
+                                  background: "transparent",
+                                  cursor: "pointer",
+                                  textAlign: "left",
+                                  borderBottom: "1px solid var(--outline)",
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = "var(--low)";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = "transparent";
+                                }}
+                              >
+                                <MS n="person" size={15} style={{ color: "var(--on-mut)" }} />
+                                <div>
+                                  <p style={{ fontSize: 13, fontWeight: 600 }}>
+                                    {u.first_name} {u.last_name}
+                                  </p>
+                                  <p
+                                    style={{
+                                      fontSize: 11,
+                                      color: "var(--on-mut)",
+                                      fontFamily: "JetBrains Mono, monospace",
+                                    }}
+                                  >
+                                    {u.email}
+                                  </p>
+                                </div>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
+
+              {/* title */}
+              <div>
+                <label style={labelStyle}>
+                  Title <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder={
+                    mode === "broadcast"
+                      ? "Platform maintenance scheduled..."
+                      : "Action required on your account..."
+                  }
+                  style={inputStyle}
+                />
+              </div>
+
+              {/* message */}
+              <div>
+                <label style={labelStyle}>
+                  Message <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  placeholder="Write your message..."
+                  style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
+                />
+              </div>
+
+              {/* channel */}
+              <div>
+                <label style={labelStyle}>Channel</label>
+                <select
+                  value={channel}
+                  onChange={(e) => setChannel(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="in_app">In-app notification</option>
+                  <option value="email">Email</option>
+                  <option value="push">Push notification</option>
+                </select>
+              </div>
+            </div>
+
+            {/* footer */}
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                justifyContent: "flex-end",
+                padding: "16px 24px 20px",
+                borderTop: "1px solid var(--outline)",
+              }}
+            >
+              <button
+                onClick={closeModal}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: 10,
+                  border: "1px solid var(--mid)",
+                  background: "transparent",
+                  color: "var(--on-var)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  fontFamily: "Manrope, sans-serif",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSend}
+                disabled={!canSend() || isPending}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "10px 24px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: !canSend() ? "var(--mid)" : "#050a26",
+                  color: !canSend() ? "var(--on-mut)" : "white",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  fontFamily: "Manrope, sans-serif",
+                  cursor: !canSend() ? "not-allowed" : "pointer",
+                }}
+              >
+                <MS n={mode === "broadcast" ? "rocket_launch" : "send"} size={14} />
+                {isPending
+                  ? "Sending..."
+                  : mode === "broadcast"
+                    ? `Send to ${users.length} users`
+                    : "Send notification"}
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </AdminLayout>
-  );
-}
-
-/** Tab button for switching between broadcast and single user modes. */
-function ModeTab({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: string; label: string }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 5,
-        padding: "5px 12px",
-        fontSize: 11.5,
-        fontWeight: active ? 700 : 500,
-        fontFamily: "Manrope, sans-serif",
-        background: active ? "#050a26" : "var(--surface)",
-        color: active ? "white" : "var(--on-var)",
-        border: "none",
-        cursor: "pointer",
-      }}
-    >
-      <MS n={icon} size={14} />
-      {label}
-    </button>
   );
 }

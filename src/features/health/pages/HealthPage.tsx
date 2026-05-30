@@ -327,11 +327,13 @@ export default function HealthPage() {
 
   // extract infra statuses from the stored intelligence ping results
   function infraStatus(name: string): "healthy" | "unhealthy" | "unreachable" {
-    const ping = latestRound.find(
-      (p) => p.service_name.toLowerCase() === name.toLowerCase()
-    );
+    const ping = latestRound.find((p) => p.service_name.toLowerCase() === name.toLowerCase());
     if (!ping) return "unreachable";
-    return ping.status === "healthy" ? "healthy" : ping.status === "unhealthy" ? "unhealthy" : "unreachable";
+    return ping.status === "healthy"
+      ? "healthy"
+      : ping.status === "unhealthy"
+        ? "unhealthy"
+        : "unreachable";
   }
 
   const infraLoading = latestRound.length === 0;
