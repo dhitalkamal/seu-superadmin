@@ -358,6 +358,7 @@ export default function VerificationQueuePage() {
       qc.invalidateQueries({ queryKey: ["orgs"] });
       toast("Organization approved - dashboard access granted");
     },
+    onError: () => toast("Action failed"),
   });
   const reject = useMutation({
     mutationFn: (id: string) => superadminApi.rejectOrg(id),
@@ -365,6 +366,7 @@ export default function VerificationQueuePage() {
       qc.invalidateQueries({ queryKey: ["orgs"] });
       toast("Organization rejected");
     },
+    onError: () => toast("Action failed"),
   });
 
   /** Route approve/reject to the right mutation. */
@@ -489,7 +491,9 @@ export default function VerificationQueuePage() {
           color="lav"
           label="Avg review time"
           value={formatAvgReviewTime(analytics?.orgs?.avg_review_hours)}
-          trend={analytics?.orgs?.avg_review_hours !== undefined ? "from analytics API" : "no data yet"}
+          trend={
+            analytics?.orgs?.avg_review_hours !== undefined ? "from analytics API" : "no data yet"
+          }
           trendKind="steady"
         />
       </div>
