@@ -291,7 +291,7 @@ export default function AdminLayout({ children, title, subtitle, actions, crumbs
           }}
         >
           {/* right: profile only  - no role switcher, no notifications */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3" style={{ marginLeft: "auto" }}>
             <button
               className="flex items-center gap-3"
               style={{
