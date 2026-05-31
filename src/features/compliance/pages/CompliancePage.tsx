@@ -2,25 +2,11 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS, useToast } from "@/shared/components/v8";
+import { exportPDF } from "@/shared/lib/export";
 import superadminApi, {
   type ComplianceControl,
   type ComplianceStatus,
 } from "@/shared/api/superadmin.api";
-
-// static certification cards - informational display only
-const CERTS = [
-  {
-    c: "SOC 2 Type II",
-    s: "Planned",
-    e: "Q3 2026",
-    ic: "verified_user",
-    col: "#dba13d",
-    iss: "AICPA",
-  },
-  { c: "GDPR", s: "Compliant", e: "Ongoing", ic: "shield", col: "#16a34a", iss: "EU" },
-  { c: "ISO 27001", s: "Planned", e: "Q1 2027", ic: "pending", col: "#dba13d", iss: "ISO/IEC" },
-  { c: "HIPAA", s: "N/A", e: "-", ic: "remove", col: "#6b6c75", iss: "-" },
-];
 
 // categories the API groups controls into
 const KNOWN_CATEGORIES = ["security", "availability", "confidentiality", "audit"];
@@ -48,10 +34,11 @@ function statusStyle(status: ComplianceStatus): { color: string; icon: string } 
 type NewControlFormProps = {
   defaultCategory?: string;
   onClose: () => void;
+  toast: (msg: string) => void;
 };
 
 /** Inline form for creating a new compliance control. */
-function NewControlForm({ defaultCategory = "security", onClose }: NewControlFormProps) {
+function NewControlForm({ defaultCategory = "security", onClose, toast }: NewControlFormProps) {
   const qc = useQueryClient();
   const [category, setCategory] = useState(defaultCategory);
   const [name, setName] = useState("");
@@ -70,6 +57,7 @@ function NewControlForm({ defaultCategory = "security", onClose }: NewControlFor
       qc.invalidateQueries({ queryKey: ["compliance-summary"] });
       onClose();
     },
+    onError: () => toast("Action failed"),
   });
 
   function handleSubmit(e: React.FormEvent) {
@@ -255,7 +243,7 @@ function NewControlForm({ defaultCategory = "security", onClose }: NewControlFor
 // *  Single control row
 
 /** One compliance control row with a clickable status toggle. */
-function ControlRow({ ctrl }: { ctrl: ComplianceControl }) {
+function ControlRow({ ctrl, toast }: { ctrl: ComplianceControl; toast: (msg: string) => void }) {
   const qc = useQueryClient();
 
   const update = useMutation({
@@ -265,6 +253,7 @@ function ControlRow({ ctrl }: { ctrl: ComplianceControl }) {
       qc.invalidateQueries({ queryKey: ["compliance-controls"] });
       qc.invalidateQueries({ queryKey: ["compliance-summary"] });
     },
+    onError: () => toast("Action failed"),
   });
 
   // cycle through pass -> fail -> na -> pass
@@ -379,7 +368,16 @@ export default function CompliancePage() {
           <>
             <button
               className="btn-sm"
-              onClick={() => toast("Compliance pack download coming soon")}
+              onClick={() => {
+                const headers = ["Control", "Category", "Status", "Description"];
+                const rows = controls.map((c) => [
+                  c.name,
+                  c.category ?? "-",
+                  c.status,
+                  c.description ?? "-",
+                ]);
+                exportPDF("Sansaar Compliance Pack", headers, rows, "compliance-pack");
+              }}
             >
               <MS n="download" size={13} />
               Compliance pack
@@ -424,55 +422,89 @@ export default function CompliancePage() {
         />
       </div>
 
-      {/* cert cards */}
-      <div
-        style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}
-      >
-        {CERTS.map((cert) => (
-          <div key={cert.c} className="panel" style={{ padding: 18 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 9,
-                  background: cert.col + "1a",
-                  color: cert.col,
-                  display: "grid",
-                  placeItems: "center",
-                }}
-              >
-                <MS n={cert.ic} size={18} />
+      {/* certification cards from compliance controls */}
+      {controls.length > 0 ? (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))",
+            gap: 12,
+            marginBottom: 20,
+          }}
+        >
+          {controls.slice(0, 8).map((ctrl) => {
+            const st = statusStyle(ctrl.status);
+            return (
+              <div key={ctrl.id} className="panel" style={{ padding: 18 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 9,
+                      background: st.color + "1a",
+                      color: st.color,
+                      display: "grid",
+                      placeItems: "center",
+                    }}
+                  >
+                    <MS n={st.icon} size={18} />
+                  </div>
+                  <span
+                    className={`pill ${ctrl.status === "pass" ? "active" : ctrl.status === "fail" ? "suspended" : "draft"}`}
+                  >
+                    {ctrl.status.replace(/_/g, " ")}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontFamily: "Space Grotesk",
+                    fontWeight: 600,
+                    fontSize: 15,
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  {ctrl.name}
+                </div>
+                {ctrl.description && (
+                  <div
+                    style={{
+                      fontSize: 11.5,
+                      color: "var(--on-mut)",
+                      marginTop: 4,
+                      fontFamily: "Manrope, sans-serif",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {ctrl.description}
+                  </div>
+                )}
               </div>
-              <span
-                className={`pill ${cert.s === "Compliant" ? "active" : cert.s === "Planned" ? "pending" : "draft"}`}
-              >
-                {cert.s}
-              </span>
-            </div>
-            <div
-              style={{
-                fontFamily: "Space Grotesk",
-                fontWeight: 600,
-                fontSize: 15,
-                letterSpacing: "-0.02em",
-              }}
-            >
-              {cert.c}
-            </div>
-            <div
-              style={{
-                fontSize: 11.5,
-                color: "var(--on-mut)",
-                marginTop: 4,
-                fontFamily: "JetBrains Mono, monospace",
-              }}
-            >
-              {cert.iss} - {cert.e}
-            </div>
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="panel" style={{ padding: "32px 0", textAlign: "center", marginBottom: 20 }}>
+          <MS
+            n="verified"
+            size={32}
+            style={{ display: "block", margin: "0 auto 12px", opacity: 0.25 }}
+          />
+          <p
+            style={{
+              fontFamily: "Space Grotesk, sans-serif",
+              fontWeight: 600,
+              fontSize: 15,
+              marginBottom: 6,
+            }}
+          >
+            No compliance controls yet
+          </p>
+          <p style={{ fontSize: 12.5, color: "var(--on-mut)", fontFamily: "Manrope, sans-serif" }}>
+            Add controls using the buttons above to track your compliance status.
+          </p>
+        </div>
+      )}
 
       {/* platform stats */}
       <div className="chart-grid-2" style={{ marginBottom: 20 }}>
@@ -604,11 +636,17 @@ export default function CompliancePage() {
         <div className="panel-body">
           {/* new audit form - creates a control with category=audit */}
           {showNewAudit && (
-            <NewControlForm defaultCategory="audit" onClose={() => setShowNewAudit(false)} />
+            <NewControlForm
+              defaultCategory="audit"
+              onClose={() => setShowNewAudit(false)}
+              toast={toast}
+            />
           )}
 
           {/* new control form */}
-          {showNewControl && <NewControlForm onClose={() => setShowNewControl(false)} />}
+          {showNewControl && (
+            <NewControlForm onClose={() => setShowNewControl(false)} toast={toast} />
+          )}
 
           {controlsLoading ? (
             <div
@@ -665,7 +703,7 @@ export default function CompliancePage() {
                     {categoryLabel(cat)}
                   </div>
                   {ctrls.map((ctrl) => (
-                    <ControlRow key={ctrl.id} ctrl={ctrl} />
+                    <ControlRow key={ctrl.id} ctrl={ctrl} toast={toast} />
                   ))}
                 </div>
               ))}

@@ -41,6 +41,7 @@ export default function OrgVerifyPage() {
       toast("Organization approved  - dashboard access granted");
       navigate("/verification-queue");
     },
+    onError: () => toast("Action failed"),
   });
 
   const reject = useMutation({
@@ -51,6 +52,7 @@ export default function OrgVerifyPage() {
       toast("Organization rejected");
       navigate("/verification-queue");
     },
+    onError: () => toast("Action failed"),
   });
 
   const suspend = useMutation({
@@ -60,6 +62,7 @@ export default function OrgVerifyPage() {
       qc.invalidateQueries({ queryKey: ["org", id] });
       toast("Organization suspended");
     },
+    onError: () => toast("Action failed"),
   });
 
   const reinstate = useMutation({
@@ -69,6 +72,7 @@ export default function OrgVerifyPage() {
       qc.invalidateQueries({ queryKey: ["org", id] });
       toast("Organization reinstated");
     },
+    onError: () => toast("Action failed"),
   });
 
   if (isLoading || !org) {
@@ -802,7 +806,9 @@ export default function OrgVerifyPage() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <MS n="description" size={18} style={{ color: "#3b82f6" }} />
-                <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 15 }}>
+                <span
+                  style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 15 }}
+                >
                   {viewingDoc.name}
                 </span>
               </div>
@@ -845,7 +851,17 @@ export default function OrgVerifyPage() {
               </div>
             </div>
             {/* content */}
-            <div style={{ flex: 1, overflow: "auto", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f9fa", minHeight: 400 }}>
+            <div
+              style={{
+                flex: 1,
+                overflow: "auto",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "#f8f9fa",
+                minHeight: 400,
+              }}
+            >
               {viewingDoc.name.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i) ? (
                 <img
                   src={viewingDoc.url}

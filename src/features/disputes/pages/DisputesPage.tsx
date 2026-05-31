@@ -4,6 +4,8 @@ import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS, useToast } from "@/shared/components/v8";
 import { exportCSV, exportPDF } from "@/shared/lib/export";
 import superadminApi, { type DisputeStatus, type DisputeReason } from "@/shared/api/superadmin.api";
+import { usePagination } from "@/shared/lib/usePagination";
+import Pagination from "@/shared/components/Pagination";
 
 // * style maps
 
@@ -24,7 +26,7 @@ const REASON_LABELS: Record<DisputeReason, string> = {
 
 /**
  * Superadmin disputes dashboard  - lists all payment disputes platform-wide
- * and lets admins advance them through the lifecycle (open → under_review → resolved/closed).
+ * and lets admins advance them through the lifecycle (open -> under_review -> resolved/closed).
  */
 export default function DisputesPage() {
   const { toastEl, toast } = useToast();
@@ -52,6 +54,12 @@ export default function DisputesPage() {
   const resolvedCount = disputes.filter((d) => d.status === "resolved").length;
 
   const filtered = filter === "all" ? disputes : disputes.filter((d) => d.status === filter);
+
+  // * paginate the filtered list at 20 rows per page
+  const { page, totalPages, paged, total, setPage, next, prev, from, to } = usePagination(
+    filtered,
+    20
+  );
 
   // * export helpers - format filtered disputes as rows for csv/pdf
   const exportHeaders = ["ID", "Order", "Status", "Reason", "Created"];
@@ -196,7 +204,7 @@ export default function DisputesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((d) => {
+                {paged.map((d) => {
                   const s = STATUS_STYLE[d.status];
                   return (
                     <tr key={d.id}>
@@ -302,6 +310,19 @@ export default function DisputesPage() {
             </table>
           )}
         </div>
+        {/* pagination - only shown when there is more than one page */}
+        {totalPages > 1 && (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPage={setPage}
+            onNext={next}
+            onPrev={prev}
+            from={from}
+            to={to}
+            total={total}
+          />
+        )}
       </div>
     </AdminLayout>
   );

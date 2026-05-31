@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS, useToast } from "@/shared/components/v8";
 import superadminApi, { type ModerationCase } from "@/shared/api/superadmin.api";
-
+import { usePagination } from "@/shared/lib/usePagination";
+import Pagination from "@/shared/components/Pagination";
 
 /** Severity pill for a moderation case. Derived from report count and status. */
 function sevFromCase(c: ModerationCase): "high" | "med" | "low" {
@@ -44,6 +45,12 @@ export default function ModerationPage() {
   const pendingCases = cases.filter((c) => c.status === "pending" || c.status === "under_review");
   // decided = all non-pending cases for the recent decisions table
   const decidedCases = cases.filter((c) => c.status !== "pending" && c.status !== "under_review");
+
+  // paginate decided cases at 20 per page
+  const { page, totalPages, paged, total, setPage, next, prev, from, to } = usePagination(
+    decidedCases,
+    20
+  );
 
   const pendingCount = stats?.pending ?? stats?.pending_count ?? pendingCases.length;
   const decidedCount = stats?.decided ?? stats?.decided_count ?? decidedCases.length;
@@ -236,11 +243,14 @@ export default function ModerationPage() {
                           <span style={{ fontWeight: 700 }}>Type:</span> {c.content_type}
                         </div>
                         <div style={{ marginBottom: 6 }}>
-                          <span style={{ fontWeight: 700 }}>Reported:</span> {new Date(c.created_at).toLocaleDateString()}
+                          <span style={{ fontWeight: 700 }}>Reported:</span>{" "}
+                          {new Date(c.created_at).toLocaleDateString()}
                         </div>
                         <div>
                           <span style={{ fontWeight: 700 }}>Case ID:</span>{" "}
-                          <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>{c.id.slice(0, 12)}</span>
+                          <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>
+                            {c.id.slice(0, 12)}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -351,7 +361,7 @@ export default function ModerationPage() {
                 </tr>
               </thead>
               <tbody>
-                {decidedCases.slice(0, 20).map((c) => {
+                {paged.map((c) => {
                   const pillClass =
                     c.status === "taken_down"
                       ? "suspended"
@@ -386,7 +396,7 @@ export default function ModerationPage() {
                           fontSize: 11,
                         }}
                       >
-                        {new Date(c.updated_at).toLocaleDateString()}
+                        {new Date(c.resolved_at ?? c.created_at).toLocaleDateString()}
                       </td>
                     </tr>
                   );
@@ -395,6 +405,18 @@ export default function ModerationPage() {
             </table>
           )}
         </div>
+        {totalPages > 1 && (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPage={setPage}
+            onNext={next}
+            onPrev={prev}
+            from={from}
+            to={to}
+            total={total}
+          />
+        )}
       </div>
     </AdminLayout>
   );
