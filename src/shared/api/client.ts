@@ -110,6 +110,8 @@ client.interceptors.response.use(
           },
           reject: (err: unknown) => reject(err),
         });
+        // safety timeout - reject queued requests if refresh takes too long
+        setTimeout(() => reject(error), 10000);
       });
     }
 

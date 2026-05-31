@@ -1,4 +1,3 @@
-import { useState, useRef, useEffect } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useAuthStore } from "@/shared/store/auth.store";
@@ -10,7 +9,12 @@ import UserAvatar from "@/shared/components/UserAvatar";
 type NavItem = { to: string; icon: string; label: string; badge?: string | number };
 type NavSection = { section: string; items: NavItem[] };
 
-function buildNav(orgCount: number, pendingCount: number, userCount: number, openTicketCount: number): NavSection[] {
+function buildNav(
+  orgCount: number,
+  pendingCount: number,
+  userCount: number,
+  openTicketCount: number
+): NavSection[] {
   return [
     {
       section: "Platform",
@@ -35,7 +39,12 @@ function buildNav(orgCount: number, pendingCount: number, userCount: number, ope
           badge: userCount > 999 ? `${(userCount / 1000).toFixed(1)}k` : userCount || undefined,
         },
         { to: "/billing", icon: "attach_money", label: "Billing & Revenue" },
-        { to: "/support", icon: "support_agent", label: "Support Tickets", badge: openTicketCount || undefined },
+        {
+          to: "/support",
+          icon: "support_agent",
+          label: "Support Tickets",
+          badge: openTicketCount || undefined,
+        },
       ],
     },
     {
@@ -83,10 +92,15 @@ export default function AdminLayout({ children, title, subtitle, actions, crumbs
 
   const { data: orgs = [] } = useQuery({ queryKey: ["orgs"], queryFn: superadminApi.listOrgs });
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: superadminApi.listUsers });
-  const { data: tickets = [] } = useQuery({ queryKey: ["tickets"], queryFn: superadminApi.listTickets });
+  const { data: tickets = [] } = useQuery({
+    queryKey: ["tickets"],
+    queryFn: superadminApi.listTickets,
+  });
   const pendingCount = orgs.filter((o) => o.status === "pending_review").length;
   const regularUserCount = users.filter((u) => !u.is_superuser).length;
-  const openTicketCount = tickets.filter((t) => t.status === "open" || t.status === "in_progress" || t.status === "escalated").length;
+  const openTicketCount = tickets.filter(
+    (t) => t.status === "open" || t.status === "in_progress" || t.status === "escalated"
+  ).length;
   const nav = buildNav(orgs.length, pendingCount, regularUserCount, openTicketCount);
 
   return (
@@ -276,11 +290,8 @@ export default function AdminLayout({ children, title, subtitle, actions, crumbs
             padding: "0 28px",
           }}
         >
-          {/* inline search  - static placeholder for now */}
-          <AdminSearch />
-
           {/* right: profile only  - no role switcher, no notifications */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3" style={{ marginLeft: "auto" }}>
             <button
               className="flex items-center gap-3"
               style={{
@@ -418,184 +429,6 @@ export default function AdminLayout({ children, title, subtitle, actions, crumbs
           {children}
         </main>
       </div>
-    </div>
-  );
-}
-
-// * admin search bar
-
-/** Inline search bar for the superadmin topbar  - searches orgs and users. */
-function AdminSearch() {
-  const navigate = useNavigate();
-  const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // ! Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // ! Keyboard shortcut  - Cmd+K or Ctrl+K to focus
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-      if (e.key === "Escape") {
-        setOpen(false);
-        inputRef.current?.blur();
-      }
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  /** Quick-jump links that always show when the search bar is focused. */
-  const quickLinks = [
-    { icon: "domain", label: "Organizations", path: "/organizations" },
-    { icon: "group", label: "Users", path: "/users" },
-    { icon: "pending_actions", label: "Verification Queue", path: "/verification-queue" },
-    { icon: "attach_money", label: "Billing & Revenue", path: "/billing" },
-    { icon: "analytics", label: "Analytics", path: "/analytics" },
-  ];
-
-  /** Filtered quick links based on query. */
-  const filtered = query.trim()
-    ? quickLinks.filter((l) => l.label.toLowerCase().includes(query.toLowerCase()))
-    : quickLinks;
-
-  return (
-    <div ref={wrapperRef} style={{ position: "relative", width: 320 }}>
-      <div
-        className="flex items-center gap-2"
-        style={{
-          background: "var(--surface)",
-          border: open ? "1px solid var(--primary)" : "1px solid var(--outline)",
-          borderRadius: 10,
-          padding: "7px 12px",
-          transition: "border-color 150ms",
-        }}
-      >
-        <span className="ms" style={{ fontSize: 17, color: "var(--on-mut)" }}>
-          search
-        </span>
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          placeholder="Search platform..."
-          style={{
-            flex: 1,
-            border: "none",
-            outline: "none",
-            background: "transparent",
-            fontFamily: "Manrope, sans-serif",
-            fontSize: 13,
-            color: "var(--on-bg)",
-          }}
-        />
-        <span
-          style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 10,
-            padding: "1px 5px",
-            borderRadius: 4,
-            background: "var(--low)",
-            color: "var(--on-mut)",
-          }}
-        >
-          ⌘K
-        </span>
-      </div>
-
-      {/* dropdown quick-jump */}
-      {open && filtered.length > 0 && (
-        <div
-          style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            left: 0,
-            right: 0,
-            background: "var(--surface)",
-            border: "1px solid var(--mid)",
-            borderRadius: 12,
-            boxShadow: "0 12px 40px rgba(0,0,0,0.12)",
-            padding: 6,
-            zIndex: 100,
-          }}
-        >
-          <p
-            style={{
-              padding: "6px 10px",
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: "var(--on-mut)",
-              fontFamily: "'JetBrains Mono', monospace",
-            }}
-          >
-            Quick jump
-          </p>
-          {filtered.map((link) => (
-            <button
-              key={link.path}
-              onClick={() => {
-                setOpen(false);
-                setQuery("");
-                navigate(link.path);
-              }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "10px 10px",
-                borderRadius: 8,
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                width: "100%",
-                textAlign: "left",
-                transition: "background 100ms",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--low)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-              }}
-            >
-              <span className="ms" style={{ fontSize: 17, color: "var(--on-mut)" }}>
-                {link.icon}
-              </span>
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "var(--on-bg)",
-                  fontFamily: "Manrope, sans-serif",
-                }}
-              >
-                {link.label}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

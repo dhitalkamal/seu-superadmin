@@ -111,6 +111,7 @@ export default function UsersPage() {
       qc.invalidateQueries({ queryKey: ["users"] });
       toast("User suspended");
     },
+    onError: () => toast("Failed to update user"),
   });
   const activate = useMutation({
     mutationFn: superadminApi.activateUser,
@@ -118,6 +119,7 @@ export default function UsersPage() {
       qc.invalidateQueries({ queryKey: ["users"] });
       toast("User activated");
     },
+    onError: () => toast("Failed to update user"),
   });
 
   function handleAction(action: string, id: string) {

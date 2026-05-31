@@ -6,7 +6,7 @@ import superadminApi from "@/shared/api/superadmin.api";
 import type { FeatureFlag } from "@/shared/api/superadmin.api";
 
 /** Available subscription plans for scoping flags. */
-const PLANS = ["free", "starter", "professional", "enterprise", "unlimited"];
+const PLANS = ["free", "starter", "pro", "ngo", "enterprise"];
 
 /** Create flag form state. */
 type CreateForm = {

@@ -153,6 +153,7 @@ export default function OrgsPage() {
       qc.invalidateQueries({ queryKey: ["orgs"] });
       toast("Organization approved");
     },
+    onError: () => toast("Action failed"),
   });
   const reject = useMutation({
     mutationFn: (id: string) => superadminApi.rejectOrg(id),
@@ -160,6 +161,7 @@ export default function OrgsPage() {
       qc.invalidateQueries({ queryKey: ["orgs"] });
       toast("Organization rejected");
     },
+    onError: () => toast("Action failed"),
   });
   const suspend = useMutation({
     mutationFn: superadminApi.suspendOrg,
@@ -167,6 +169,7 @@ export default function OrgsPage() {
       qc.invalidateQueries({ queryKey: ["orgs"] });
       toast("Organization suspended");
     },
+    onError: () => toast("Action failed"),
   });
   const reinstate = useMutation({
     mutationFn: superadminApi.reinstateOrg,
@@ -174,6 +177,7 @@ export default function OrgsPage() {
       qc.invalidateQueries({ queryKey: ["orgs"] });
       toast("Organization reinstated");
     },
+    onError: () => toast("Action failed"),
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => superadminApi.deleteOrg(id),
@@ -181,6 +185,7 @@ export default function OrgsPage() {
       qc.invalidateQueries({ queryKey: ["orgs"] });
       toast("Organization deleted");
     },
+    onError: () => toast("Action failed"),
   });
 
   // date range filter state

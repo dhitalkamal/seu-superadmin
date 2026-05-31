@@ -14,12 +14,11 @@ import DateRangeFilter, { getRangeCutoff, type Range } from "@/shared/components
 // *  Digest schedule panel
 
 /** Dropdown panel for scheduling audit log digest emails. Shows form + existing schedules. */
-function DigestPanel({ onClose }: { onClose: () => void }) {
+function DigestPanel({ onClose, toast }: { onClose: () => void; toast: (msg: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
   const [frequency, setFrequency] = useState<DigestFrequency>("weekly");
-
   const { data: schedules = [], isLoading } = useQuery({
     queryKey: ["digest-schedules"],
     queryFn: superadminApi.listDigestSchedules,
@@ -32,6 +31,7 @@ function DigestPanel({ onClose }: { onClose: () => void }) {
       qc.invalidateQueries({ queryKey: ["digest-schedules"] });
       setEmail("");
     },
+    onError: () => toast("Action failed"),
   });
 
   const toggle = useMutation({
@@ -40,6 +40,7 @@ function DigestPanel({ onClose }: { onClose: () => void }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["digest-schedules"] });
     },
+    onError: () => toast("Action failed"),
   });
 
   // close on outside click
@@ -382,7 +383,7 @@ export default function AuditLogPage() {
                 <MS n="schedule_send" size={13} />
                 Schedule digest
               </button>
-              {showDigest && <DigestPanel onClose={() => setShowDigest(false)} />}
+              {showDigest && <DigestPanel onClose={() => setShowDigest(false)} toast={toast} />}
             </div>
           </>
         }
@@ -493,7 +494,10 @@ export default function AuditLogPage() {
                   const ua = entry.user_agent ?? "internal";
                   const origin = entry.ip_address ?? "internal";
                   return (
-                    <tr key={entry.id} style={isPrivileged ? { background: "rgba(232,49,81,0.04)" } : undefined}>
+                    <tr
+                      key={entry.id}
+                      style={isPrivileged ? { background: "rgba(232,49,81,0.04)" } : undefined}
+                    >
                       <td
                         style={{
                           fontFamily: "JetBrains Mono, monospace",

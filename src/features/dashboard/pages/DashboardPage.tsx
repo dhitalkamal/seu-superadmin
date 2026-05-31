@@ -527,7 +527,16 @@ export default function DashboardPage() {
           <div key="mrr" className="chart-grid-21">
             <div className="panel">
               <div className="panel-head">
-                <span className="panel-title">Monthly recurring revenue</span>
+                <span className="panel-title">MRR trend (estimated)</span>
+                <span
+                  style={{
+                    fontSize: 10.5,
+                    fontFamily: "JetBrains Mono,monospace",
+                    color: "var(--on-mut)",
+                  }}
+                >
+                  derived from plan pricing, not actual transactions
+                </span>
                 <span
                   style={{
                     fontFamily: "Space Grotesk",

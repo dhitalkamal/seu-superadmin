@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS, useToast } from "@/shared/components/v8";
-import { AreaChart, Bars, DonutChart } from "@/shared/components/charts";
+import { AreaChart, DonutChart } from "@/shared/components/charts";
 import superadminApi, { PLAN_CATALOGUE, type Org } from "@/shared/api/superadmin.api";
 import { exportCSV, exportPDF } from "@/shared/lib/export";
 import { usePagination } from "@/shared/lib/usePagination";
@@ -156,16 +156,14 @@ export default function BillingPage() {
   const { totalMrr, segments: _segments, topOrgs, priceMap } = useBillingMetrics(orgs);
   const arr = totalMrr * 12;
   const paidOrgs = orgs.filter((o) => (priceMap[o.plan] ?? 0) > 0).length;
+  const _newOrgs = orgAnalytics?.orgs?.new_30d ?? 0;
+  const _prevOrgs = orgAnalytics?.orgs?.prev_30d ?? 0;
+  const realGrowth =
+    _prevOrgs > 0 ? Math.max(0.01, Math.min(0.15, (_newOrgs - _prevOrgs) / _prevOrgs)) : 0.05;
+  const baseRev = parseFloat(paymentAnalytics?.total_revenue ?? "0") || totalMrr;
   const FORECAST = Array.from({ length: 10 }, (_, i) =>
-    Math.round(totalMrr * Math.pow(1.05, i + 1))
+    Math.round(baseRev * Math.pow(1 + realGrowth, i + 1))
   );
-
-  // compute net churn from real analytics: compare new orgs vs previous period
-  const newOrgs30d = orgAnalytics?.orgs?.new_30d ?? 0;
-  const prevOrgs30d = orgAnalytics?.orgs?.prev_30d ?? 0;
-  const churnRate =
-    prevOrgs30d > 0 ? Math.abs(((newOrgs30d - prevOrgs30d) / prevOrgs30d) * 100).toFixed(1) : "0";
-  const churnDirection = newOrgs30d >= prevOrgs30d ? "growth" : "churn";
 
   // revenue split for donut
   const ticketRev = parseFloat(paymentAnalytics?.ticket_revenue ?? "0");
@@ -231,72 +229,48 @@ export default function BillingPage() {
         }
       />
 
-      {/* KPI row: MRR + ARR are computed from real plan data */}
+      {/* KPIs - 4 essential metrics only */}
       <div className="kpi-grid">
         <KPI
           icon="trending_up"
           color="lav"
-          label="MRR (subscriptions)"
+          label="MRR"
           value={fmtNpr(totalMrr)}
-          trend={`${paidOrgs} paid orgs`}
+          trend={`${paidOrgs} paid orgs, ARR ${fmtNpr(arr)}`}
         />
         <KPI
           icon="payments"
           color="pch"
           label="Total revenue"
           value={paymentAnalytics ? fmtNpr(parseFloat(paymentAnalytics.total_revenue)) : "--"}
-          trend={paymentAnalytics ? `NPR ${parseFloat(paymentAnalytics.revenue_30d).toLocaleString()} last 30d` : ""}
+          trend={
+            paymentAnalytics
+              ? `NPR ${parseFloat(paymentAnalytics.revenue_30d).toLocaleString()} last 30d`
+              : ""
+          }
         />
         <KPI
           icon="account_balance"
           color="mnt"
-          label="Platform fees earned"
+          label="Platform fees"
           value={paymentAnalytics ? fmtNpr(parseFloat(paymentAnalytics.platform_fees_total)) : "--"}
-          trend={paymentAnalytics ? `NPR ${parseFloat(paymentAnalytics.platform_fees_30d).toLocaleString()} last 30d` : ""}
+          trend={paymentAnalytics ? `${paymentAnalytics!.active_subscriptions} active subs` : ""}
         />
         <KPI
           icon="receipt"
           color="crl"
-          label="Total orders"
-          value={paymentAnalytics ? paymentAnalytics.total_orders.toString() : orders.length.toString()}
-          trend={paymentAnalytics ? `${paymentAnalytics.completed_orders} completed, ${paymentAnalytics.failed_orders} failed` : ""}
-        />
-      </div>
-
-      <div className="kpi-grid">
-        <KPI
-          icon="receipt_long"
-          color="pch"
-          label="Annual run rate"
-          value={fmtNpr(arr)}
-          trend={`${orgs.length} total orgs`}
-        />
-        <KPI
-          icon="subscriptions"
-          color="lav"
-          label="Active subscriptions"
-          value={paymentAnalytics ? paymentAnalytics.active_subscriptions.toString() : "--"}
-          trend={paymentAnalytics ? `${paymentAnalytics.total_subscriptions} total` : ""}
-        />
-        <KPI
-          icon="undo"
-          color="crl"
-          label="Refunds"
-          value={paymentAnalytics ? paymentAnalytics.refund_count.toString() : "--"}
-          trend={paymentAnalytics ? `NPR ${parseFloat(paymentAnalytics.refund_total).toLocaleString()} total` : ""}
-        />
-        <KPI
-          icon={churnDirection === "growth" ? "trending_up" : "trending_down"}
-          color={churnDirection === "growth" ? "mnt" : "crl"}
-          label="30d org growth"
-          value={`${churnRate}%`}
-          trend={`${newOrgs30d} new vs ${prevOrgs30d} prev`}
-          trendKind={churnDirection === "growth" ? "up" : "down"}
+          label="Orders"
+          value={paymentAnalytics ? paymentAnalytics.total_orders.toString() : "0"}
+          trend={
+            paymentAnalytics
+              ? `${paymentAnalytics.completed_orders} completed, ${paymentAnalytics.refund_count} refunds`
+              : ""
+          }
         />
       </div>
 
       {/* gateway breakdown panel */}
-      {paymentAnalytics && paymentAnalytics.gateway_breakdown.length > 0 && (
+      {paymentAnalytics && paymentAnalytics!.gateway_breakdown.length > 0 && (
         <div className="panel" style={{ marginBottom: 18 }}>
           <div className="panel-head">
             <span className="panel-title">Revenue by gateway</span>
@@ -311,7 +285,7 @@ export default function BillingPage() {
                 </tr>
               </thead>
               <tbody>
-                {paymentAnalytics.gateway_breakdown.map((g) => (
+                {paymentAnalytics!.gateway_breakdown.map((g) => (
                   <tr key={g.gateway}>
                     <td style={{ fontWeight: 700, textTransform: "capitalize" }}>{g.gateway}</td>
                     <td>{g.count}</td>
@@ -326,107 +300,11 @@ export default function BillingPage() {
         </div>
       )}
 
-      {/* subscription + order status charts */}
-      {paymentAnalytics && (
-        <div className="chart-grid-2" style={{ marginBottom: 18 }}>
-          {/* subscription status donut */}
-          <div className="panel">
-            <div className="panel-head">
-              <span className="panel-title">Subscription overview</span>
-              <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 10.5, color: "var(--on-mut)" }}>
-                {paymentAnalytics.total_subscriptions} total
-              </span>
-            </div>
-            <div className="panel-body">
-              <div className="donut-wrap">
-                <DonutChart
-                  size={180}
-                  label={paymentAnalytics.active_subscriptions.toString()}
-                  sub="Active"
-                  segments={
-                    paymentAnalytics.total_subscriptions > 0
-                      ? [
-                          { pct: Math.round((paymentAnalytics.active_subscriptions / paymentAnalytics.total_subscriptions) * 100), color: "#16a34a" },
-                          { pct: Math.round(((paymentAnalytics.total_subscriptions - paymentAnalytics.active_subscriptions) / paymentAnalytics.total_subscriptions) * 100), color: "#9ca3af" },
-                        ]
-                      : [{ pct: 100, color: "#9ca3af" }]
-                  }
-                />
-                <div className="donut-leg">
-                  <div style={{ padding: "8px 0", borderBottom: "1px solid var(--outline)" }}>
-                    <div className="donut-leg-it">
-                      <span className="donut-leg-d" style={{ background: "#16a34a" }} />
-                      <span className="donut-leg-l" style={{ fontWeight: 700 }}>Active</span>
-                      <span className="donut-leg-v">{paymentAnalytics.active_subscriptions}</span>
-                    </div>
-                  </div>
-                  <div style={{ padding: "8px 0", borderBottom: "1px solid var(--outline)" }}>
-                    <div className="donut-leg-it">
-                      <span className="donut-leg-d" style={{ background: "#050a26" }} />
-                      <span className="donut-leg-l" style={{ fontWeight: 700 }}>MRR</span>
-                      <span className="donut-leg-v">NPR {parseFloat(paymentAnalytics.subscription_mrr ?? "0").toLocaleString()}</span>
-                    </div>
-                  </div>
-                  <div style={{ padding: "8px 0" }}>
-                    <div className="donut-leg-it">
-                      <span className="donut-leg-d" style={{ background: "#dba13d" }} />
-                      <span className="donut-leg-l" style={{ fontWeight: 700 }}>Sub revenue</span>
-                      <span className="donut-leg-v">NPR {parseFloat(paymentAnalytics.subscription_revenue ?? "0").toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* order status bar chart */}
-          <div className="panel">
-            <div className="panel-head">
-              <span className="panel-title">Order status breakdown</span>
-              <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 10.5, color: "var(--on-mut)" }}>
-                {paymentAnalytics.total_orders} orders
-              </span>
-            </div>
-            <div className="panel-body">
-              {paymentAnalytics.status_breakdown.length > 0 ? (
-                <>
-                  <Bars
-                    data={paymentAnalytics.status_breakdown.map((s) => ({
-                      l: s.status,
-                      v: s.count,
-                      c: s.status === "completed" ? "#16a34a" : s.status === "failed" ? "#e83151" : s.status === "processing" ? "#dba13d" : "#9ca3af",
-                    }))}
-                    height={140}
-                  />
-                  <div style={{ display: "flex", gap: 16, marginTop: 12, flexWrap: "wrap" }}>
-                    {paymentAnalytics.status_breakdown.map((s) => (
-                      <div key={s.status} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{
-                          width: 8, height: 8, borderRadius: 2,
-                          background: s.status === "completed" ? "#16a34a" : s.status === "failed" ? "#e83151" : s.status === "processing" ? "#dba13d" : "#9ca3af",
-                        }} />
-                        <span style={{ fontSize: 11, fontFamily: "JetBrains Mono, monospace", color: "var(--on-var)", textTransform: "capitalize" }}>
-                          {s.status}: {s.count}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div style={{ padding: "40px 0", textAlign: "center", color: "var(--on-mut)", fontSize: 13 }}>
-                  No orders yet. Charts will appear after ticket purchases.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="chart-grid-2">
-        {/* donut: plan distribution across orgs */}
+        {/* plan distribution removed - data shown in top orgs table below */}
         <div className="panel">
           <div className="panel-head">
-            <span className="panel-title">Plan distribution</span>
+            <span className="panel-title">Revenue Summary</span>
           </div>
           <div className="panel-body">
             <div className="donut-wrap">
@@ -447,32 +325,70 @@ export default function BillingPage() {
                 <div style={{ padding: "8px 0", borderBottom: "1px solid var(--outline)" }}>
                   <div className="donut-leg-it" style={{ marginBottom: 4 }}>
                     <span className="donut-leg-d" style={{ background: "#050a26" }} />
-                    <span className="donut-leg-l" style={{ fontWeight: 700, color: "var(--on-bg)" }}>Subscriptions</span>
+                    <span
+                      className="donut-leg-l"
+                      style={{ fontWeight: 700, color: "var(--on-bg)" }}
+                    >
+                      Subscriptions
+                    </span>
                     <span className="donut-leg-v">{fmtNpr(subRev)}</span>
                     <span className="donut-leg-p">{subPct}%</span>
                   </div>
-                  <div style={{ fontSize: 10.5, color: "var(--on-mut)", paddingLeft: 18, fontFamily: "JetBrains Mono, monospace" }}>
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      color: "var(--on-mut)",
+                      paddingLeft: 18,
+                      fontFamily: "JetBrains Mono, monospace",
+                    }}
+                  >
                     {paymentAnalytics?.active_subscriptions ?? 0} active subs
                   </div>
                 </div>
                 <div style={{ padding: "8px 0", borderBottom: "1px solid var(--outline)" }}>
                   <div className="donut-leg-it" style={{ marginBottom: 4 }}>
                     <span className="donut-leg-d" style={{ background: "#e83151" }} />
-                    <span className="donut-leg-l" style={{ fontWeight: 700, color: "var(--on-bg)" }}>Ticket sales</span>
+                    <span
+                      className="donut-leg-l"
+                      style={{ fontWeight: 700, color: "var(--on-bg)" }}
+                    >
+                      Ticket sales
+                    </span>
                     <span className="donut-leg-v">{fmtNpr(ticketRev)}</span>
                     <span className="donut-leg-p">{ticketPct}%</span>
                   </div>
-                  <div style={{ fontSize: 10.5, color: "var(--on-mut)", paddingLeft: 18, fontFamily: "JetBrains Mono, monospace" }}>
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      color: "var(--on-mut)",
+                      paddingLeft: 18,
+                      fontFamily: "JetBrains Mono, monospace",
+                    }}
+                  >
                     {paymentAnalytics?.completed_orders ?? 0} completed orders
                   </div>
                 </div>
                 <div style={{ padding: "8px 0" }}>
                   <div className="donut-leg-it" style={{ marginBottom: 4 }}>
                     <span className="donut-leg-d" style={{ background: "#16a34a" }} />
-                    <span className="donut-leg-l" style={{ fontWeight: 700, color: "var(--on-bg)" }}>Platform fees</span>
-                    <span className="donut-leg-v">{fmtNpr(parseFloat(paymentAnalytics?.platform_fees_total ?? "0"))}</span>
+                    <span
+                      className="donut-leg-l"
+                      style={{ fontWeight: 700, color: "var(--on-bg)" }}
+                    >
+                      Platform fees
+                    </span>
+                    <span className="donut-leg-v">
+                      {fmtNpr(parseFloat(paymentAnalytics?.platform_fees_total ?? "0"))}
+                    </span>
                   </div>
-                  <div style={{ fontSize: 10.5, color: "var(--on-mut)", paddingLeft: 18, fontFamily: "JetBrains Mono, monospace" }}>
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      color: "var(--on-mut)",
+                      paddingLeft: 18,
+                      fontFamily: "JetBrains Mono, monospace",
+                    }}
+                  >
                     net earnings from ticket fees
                   </div>
                 </div>
@@ -498,10 +414,24 @@ export default function BillingPage() {
                 fontStyle: "italic",
               }}
             >
-              Projected at 5% monthly growth
+              {`Projected at ${Math.round(realGrowth * 100)}% monthly growth`}
             </span>
           </div>
           <div className="panel-body">
+            <p
+              style={{
+                fontSize: 11,
+                color: "var(--on-mut)",
+                fontFamily: "Manrope, sans-serif",
+                marginBottom: 10,
+                padding: "6px 10px",
+                background: "var(--low)",
+                borderRadius: 8,
+                borderLeft: "3px solid var(--outline)",
+              }}
+            >
+              Projected estimate based on current growth rate. Not a guarantee of future revenue.
+            </p>
             <AreaChart data={FORECAST} height={200} color="#7a1d12" accent="#dba13d" />
             <div
               style={{

@@ -4,6 +4,8 @@ import AdminLayout from "@/shared/layouts/AdminLayout";
 import { PH, KPI, MS, useToast } from "@/shared/components/v8";
 import { exportCSV, exportPDF } from "@/shared/lib/export";
 import superadminApi, { type TicketPriority, type TicketStatus } from "@/shared/api/superadmin.api";
+import { usePagination } from "@/shared/lib/usePagination";
+import Pagination from "@/shared/components/Pagination";
 
 type TicketFilter = {
   status: TicketStatus | "all";
@@ -193,6 +195,7 @@ export default function SupportPage() {
       qc.invalidateQueries({ queryKey: ["tickets"] });
       toast("Ticket updated");
     },
+    onError: () => toast("Action failed"),
   });
 
   const openCount = tickets.filter((t) => t.status === "open" || t.status === "in_progress").length;
@@ -210,6 +213,12 @@ export default function SupportPage() {
   });
 
   const hasActiveFilter = ticketFilter.status !== "all" || ticketFilter.priority !== "all";
+
+  // paginate the filtered result, 20 rows per page
+  const { page, totalPages, paged, total, setPage, next, prev, from, to } = usePagination(
+    filteredTickets,
+    20
+  );
 
   // * export helpers - format tickets as rows for csv/pdf
   const exportHeaders = ["Subject", "Status", "Priority", "Created"];
@@ -355,7 +364,7 @@ export default function SupportPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredTickets.map((t) => {
+                {paged.map((t) => {
                   const p = PRIORITY_STYLE[t.priority];
                   const s = STATUS_STYLE[t.status];
                   return (
@@ -445,6 +454,19 @@ export default function SupportPage() {
             </table>
           )}
         </div>
+        {/* pagination */}
+        {totalPages > 1 && (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPage={setPage}
+            onNext={next}
+            onPrev={prev}
+            from={from}
+            to={to}
+            total={total}
+          />
+        )}
       </div>
     </AdminLayout>
   );

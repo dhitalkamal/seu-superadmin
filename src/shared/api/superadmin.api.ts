@@ -355,7 +355,7 @@ export type ModerationCase = {
   reviewer_notes?: string;
   organization_id?: string;
   created_at: string;
-  updated_at: string;
+  resolved_at: string | null;
 };
 
 export type ModerationStats = {
@@ -450,7 +450,12 @@ const superadminApi = {
 
   updateFeatureFlag: async (
     key: string,
-    payload: { name?: string; is_enabled?: boolean; enabled_plans?: string[]; enabled_org_ids?: string[] }
+    payload: {
+      name?: string;
+      is_enabled?: boolean;
+      enabled_plans?: string[];
+      enabled_org_ids?: string[];
+    }
   ) => {
     const r = await client.patch(`${IAM}/admin/feature-flags/${key}/`, payload);
     return r.data;
@@ -504,7 +509,7 @@ const superadminApi = {
     client.post<ApiOk<Org>>(`${MGMT}/organizations/${id}/reinstate/`).then((r) => r.data.data),
 
   deleteOrg: (id: string) =>
-    client.post<ApiOk<Org>>(`${MGMT}/organizations/${id}/delete/`).then((r) => r.data.data),
+    client.delete<ApiOk<Org>>(`${MGMT}/organizations/${id}/delete/`).then((r) => r.data.data),
 
   listOrgMembers: (orgId: string) =>
     client
@@ -706,7 +711,10 @@ const superadminApi = {
     return r.data?.data ?? r.data ?? [];
   },
 
-  createDigestSchedule: async (payload: { email: string; frequency: DigestFrequency }) => {
+  createDigestSchedule: async (payload: {
+    email: string;
+    frequency: DigestFrequency;
+  }) => {
     const r = await client.post(`${NOTIFICATION}/digest-schedules/`, payload);
     return r.data;
   },
