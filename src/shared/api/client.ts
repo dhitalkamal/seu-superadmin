@@ -5,6 +5,21 @@ import { SUPERADMIN_AUTH_STORAGE_KEY, useAuthStore } from "@/shared/store/auth.s
 const LEGACY_AUTH_STORAGE_KEY = "sansaar-auth";
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost";
 
+// service prefix to render URL mapping - used in production when deployed without nginx gateway
+const SERVICE_MAP: Record<string, string> = {
+  "/iam/": import.meta.env.VITE_RENDER_IAM || "",
+  "/event/": import.meta.env.VITE_RENDER_EVENT || "",
+  "/org/": import.meta.env.VITE_RENDER_MANAGEMENT || "",
+  "/venue/": import.meta.env.VITE_RENDER_MANAGEMENT || "",
+  "/volunteer/": import.meta.env.VITE_RENDER_MANAGEMENT || "",
+  "/community/": import.meta.env.VITE_RENDER_MANAGEMENT || "",
+  "/marketing/": import.meta.env.VITE_RENDER_MANAGEMENT || "",
+  "/participation/": import.meta.env.VITE_RENDER_PARTICIPATION || "",
+  "/payment/": import.meta.env.VITE_RENDER_PAYMENT || "",
+  "/notification/": import.meta.env.VITE_RENDER_NOTIFICATION || "",
+  "/intelligence/": import.meta.env.VITE_RENDER_INTELLIGENCE || "",
+};
+
 function getAuthBlob(): string | null {
   return (
     localStorage.getItem(SUPERADMIN_AUTH_STORAGE_KEY) ??
@@ -12,10 +27,23 @@ function getAuthBlob(): string | null {
   );
 }
 
-/** Axios instance pointed at the Nginx gateway. */
+/** Axios instance pointed at the Nginx gateway (local) or Render services (prod). */
 const client = axios.create({
   baseURL: API_BASE,
   adapter: "fetch",
+});
+
+// rewrite service prefix to render URL in production (no nginx gateway on vercel)
+client.interceptors.request.use((config) => {
+  const url = config.url ?? "";
+  for (const [prefix, renderUrl] of Object.entries(SERVICE_MAP)) {
+    if (url.startsWith(prefix) && renderUrl) {
+      config.baseURL = renderUrl;
+      config.url = url.slice(prefix.length - 1);
+      break;
+    }
+  }
+  return config;
 });
 
 // json by default, but let axios auto-detect for FormData uploads
@@ -119,7 +147,11 @@ client.interceptors.response.use(
     originalRequest._retry = true;
 
     try {
-      const res = await axios.post(`${API_BASE}/iam/api/v1/auth/token/refresh/`, {
+      const refreshBase = SERVICE_MAP["/iam/"] || API_BASE;
+      const refreshPath = SERVICE_MAP["/iam/"]
+        ? "/api/v1/auth/token/refresh/"
+        : "/iam/api/v1/auth/token/refresh/";
+      const res = await axios.post(`${refreshBase}${refreshPath}`, {
         refresh: refreshToken,
       });
       const newAccess: string = res.data?.data?.access ?? res.data?.access;
